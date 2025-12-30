@@ -1,4 +1,5 @@
 // Optimized API utility with request deduplication
+const API_BASE: string = (import.meta as any)?.env?.VITE_API_BASE_URL ?? '';
 const requestCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_DURATION = 5000; // 5 seconds cache for GET requests
 
@@ -34,6 +35,8 @@ export async function fetchWithAuth(url: string, options?: RequestInit): Promise
 
   // Implement request deduplication for GET requests
   const method = options?.method?.toUpperCase() || 'GET';
+  const isAbsolute = url.startsWith('http://') || url.startsWith('https://');
+  const fullUrl = isAbsolute ? url : (API_BASE ? `${API_BASE}${url}` : url);
   
   // Clear entire cache on any mutation to ensure fresh data
   if (method !== 'GET') {
@@ -41,7 +44,7 @@ export async function fetchWithAuth(url: string, options?: RequestInit): Promise
   }
   
   if (method === 'GET') {
-    const cacheKey = `${method}:${url}`;
+    const cacheKey = `${method}:${fullUrl}`;
     const cached = requestCache.get(cacheKey);
     
     // Check if cache exists and is still valid
@@ -54,15 +57,19 @@ export async function fetchWithAuth(url: string, options?: RequestInit): Promise
     }
 
     // Make the actual fetch request
-    const response = await fetch(url, fetchOptions);
+    const response = await fetch(fullUrl, fetchOptions);
     
     // Only cache successful responses
     if (response.ok) {
       try {
         // Clone and cache the response data
         const responseClone = response.clone();
-        const data = await responseClone.json();
-        requestCache.set(cacheKey, { data, timestamp: Date.now() });
+        const ct = responseClone.headers.get('content-type') || '';
+        const isJson = ct.includes('application/json');
+        const data = isJson ? await responseClone.json() : null;
+        if (data !== null) {
+          requestCache.set(cacheKey, { data, timestamp: Date.now() });
+        }
 
         // Clean up old cache entries
         setTimeout(() => {
@@ -77,5 +84,5 @@ export async function fetchWithAuth(url: string, options?: RequestInit): Promise
     return response;
   }
 
-  return fetch(url, fetchOptions);
+  return fetch(fullUrl, fetchOptions);
 }

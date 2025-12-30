@@ -8,6 +8,8 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const API_BASE: string = (import.meta as any)?.env?.VITE_API_BASE_URL ?? '';
+  const IS_PROD: boolean = Boolean((import.meta as any)?.env?.PROD);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,17 +20,24 @@ export default function Login() {
     localStorage.clear();
 
     try {
-      const response = await fetch('/api/auth/login', {
+      if (IS_PROD && !API_BASE) {
+        setError('Service not available. Please try again later.');
+        return;
+      }
+      const loginUrl = API_BASE ? `${API_BASE}/api/auth/login` : '/api/auth/login';
+      const response = await fetch(loginUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
+      const ct = response.headers.get('content-type') || '';
+      const isJson = ct.includes('application/json');
+      const data = isJson ? await response.json() : null;
 
       if (response.ok) {
         // Store user data in local storage for faster access
-        localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem('user', JSON.stringify((data as any).user));
         
         // Navigate based on role
         const roleRoutes: Record<string, string> = {
@@ -39,14 +48,14 @@ export default function Login() {
           recruitment_manager: '/rm',
         };
         
-        const route = roleRoutes[data.user.role];
+        const route = roleRoutes[(data as any).user.role];
         if (route) {
           navigate(route, { replace: true });
         } else {
           setError('Invalid user role');
         }
       } else {
-        setError(data.error || 'Invalid email or password');
+        setError((data as any)?.error || (isJson ? 'Invalid email or password' : 'Service not available. Please try again later.'));
       }
     } catch (error) {
       console.error('Login error:', error);

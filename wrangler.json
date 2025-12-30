@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "019b0362-cbb9-76e7-b665-a4fcc58bd445",
+  "name": "ebes-app",
   "main": "./src/worker/index.ts",
   "compatibility_date": "2025-06-17",
   "compatibility_flags": ["nodejs_compat"],
@@ -16,12 +16,6 @@
       "binding": "DB",
       "database_name": "019b0362-cbb9-76e7-b665-a4fcc58bd445",
       "database_id": "019b0362-cbb9-76e7-b665-a4fcc58bd445"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "R2_BUCKET",
-      "bucket_name": "019b0362-cbb9-76e7-b665-a4fcc58bd445"
     }
   ]
 }

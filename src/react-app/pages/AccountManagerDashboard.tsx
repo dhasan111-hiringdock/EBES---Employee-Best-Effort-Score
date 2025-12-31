@@ -9,6 +9,7 @@ import CompanyPage from "@/react-app/pages/CompanyPage";
 import MonthlyReminderModal from "@/react-app/components/account-manager/MonthlyReminderModal";
 import DropoutDecisions from "@/react-app/components/account-manager/DropoutDecisions";
 import ClientTeamSelector from "@/react-app/components/account-manager/ClientTeamSelector";
+import Pipeline from "@/react-app/components/account-manager/Pipeline";
 import { fetchWithAuth } from "@/react-app/utils/api";
 
 interface Client {
@@ -139,6 +140,15 @@ export default function AccountManagerDashboard() {
               path="/roles"
               element={
                 <RoleManagement
+                  clientId={selectedClient!.id}
+                  teamId={selectedTeam!.id}
+                />
+              }
+            />
+            <Route
+              path="/pipeline"
+              element={
+                <Pipeline
                   clientId={selectedClient!.id}
                   teamId={selectedTeam!.id}
                 />

@@ -45,7 +45,33 @@ app.get("/api/recruiter/clients", recruiterOnly, async (c) => {
       .bind((recruiterUser as any).id)
       .all();
 
-    return c.json(assignments.results || []);
+    const roleClients = await db
+      .prepare(`
+        SELECT c.*, t.id as team_id, t.name as team_name, t.team_code
+        FROM role_recruiter_assignments rra
+        INNER JOIN am_roles r ON rra.role_id = r.id
+        INNER JOIN clients c ON r.client_id = c.id
+        INNER JOIN app_teams t ON r.team_id = t.id
+        WHERE rra.recruiter_user_id = ? AND c.is_active = 1 AND r.status = 'active'
+        ORDER BY r.created_at DESC
+      `)
+      .bind((recruiterUser as any).id)
+      .all();
+
+    const byClient: Record<number, any> = {};
+    for (const row of assignments.results || []) {
+      const v = row as any;
+      byClient[v.id] = v;
+    }
+    for (const row of roleClients.results || []) {
+      const v = row as any;
+      if (!byClient[v.id]) {
+        byClient[v.id] = v;
+      }
+    }
+
+    const result = Object.values(byClient);
+    return c.json(result);
   } catch (error) {
     console.error("Error fetching recruiter clients:", error);
     return c.json({ error: "Failed to fetch clients" }, 500);
@@ -516,7 +542,7 @@ app.post("/api/recruiter/submissions", recruiterOnly, async (c) => {
               candidate_id, role_id, recruiter_user_id, client_id, team_id,
               status, submission_date, is_discarded
             )
-            VALUES (?, ?, ?, ?, ?, 'submitted', ?, 0)
+            VALUES (?, ?, ?, ?, ?, 'rm_evaluation', ?, 0)
           `)
           .bind(candidateId, roleId, (recruiterUser as any).id, clientId, teamId, data.submission_date)
           .run();

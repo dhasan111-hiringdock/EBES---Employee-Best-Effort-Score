@@ -35,6 +35,7 @@ export default function QuickEntryModal({ client, onClose, onSuccess }: QuickEnt
   const [dealRoles, setDealRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const [entryType, setEntryType] = useState<EntryType>("deal");
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
@@ -76,10 +77,11 @@ export default function QuickEntryModal({ client, onClose, onSuccess }: QuickEnt
     if (!selectedRole || !client) return;
 
     setSubmitting(true);
+    setError(null);
     try {
       if (entryType === "deal") {
         // Submit deal entry
-        await fetchWithAuth("/api/recruiter/submissions", {
+        const resp = await fetchWithAuth("/api/recruiter/submissions", {
           method: "POST",
           body: JSON.stringify({
             client_id: client.id,
@@ -90,11 +92,22 @@ export default function QuickEntryModal({ client, onClose, onSuccess }: QuickEnt
             notes: "",
           }),
         });
+        if (!resp.ok) {
+          try {
+            const ct = resp.headers.get('content-type') || '';
+            const isJson = ct.includes('application/json');
+            const data = isJson ? await resp.json() : await resp.text();
+            setError((data as any)?.error || 'Failed to create deal entry');
+          } catch {
+            setError('Failed to create deal entry');
+          }
+          return;
+        }
       } else {
         // Submit dropout entry
         const roleDetails = dealRoles.find(r => r.id === selectedRole.id);
         if (roleDetails) {
-          await fetchWithAuth("/api/recruiter/submissions", {
+          const resp = await fetchWithAuth("/api/recruiter/submissions", {
             method: "POST",
             body: JSON.stringify({
               entry_type: "dropout",
@@ -107,6 +120,17 @@ export default function QuickEntryModal({ client, onClose, onSuccess }: QuickEnt
               notes: "",
             }),
           });
+          if (!resp.ok) {
+            try {
+              const ct = resp.headers.get('content-type') || '';
+              const isJson = ct.includes('application/json');
+              const data = isJson ? await resp.json() : await resp.text();
+              setError((data as any)?.error || 'Failed to create dropout entry');
+            } catch {
+              setError('Failed to create dropout entry');
+            }
+            return;
+          }
         }
       }
 
@@ -154,6 +178,11 @@ export default function QuickEntryModal({ client, onClose, onSuccess }: QuickEnt
             </div>
           ) : (
             <div className="p-6 space-y-6">
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3">
+                  {error}
+                </div>
+              )}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">
                   Quickly add a deal or dropout entry without a submission

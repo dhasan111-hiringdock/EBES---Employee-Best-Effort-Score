@@ -1,0 +1,9 @@
+ALTER TABLE recruiter_submissions DROP COLUMN rm_validation_status;
+ALTER TABLE recruiter_submissions DROP COLUMN rm_rate_bill;
+ALTER TABLE recruiter_submissions DROP COLUMN rm_rate_pay;
+ALTER TABLE recruiter_submissions DROP COLUMN rm_location;
+ALTER TABLE recruiter_submissions DROP COLUMN rm_work_type;
+ALTER TABLE recruiter_submissions DROP COLUMN rm_notes;
+ALTER TABLE recruiter_submissions DROP COLUMN rm_reviewed_at;
+ALTER TABLE recruiter_submissions DROP COLUMN am_notes;
+ALTER TABLE recruiter_submissions DROP COLUMN am_reviewed_at;

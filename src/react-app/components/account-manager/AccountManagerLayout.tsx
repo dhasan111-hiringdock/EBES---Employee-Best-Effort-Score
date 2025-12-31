@@ -71,6 +71,7 @@ export default function AccountManagerLayout({
   const navItems = [
     { path: "/am", icon: Target, label: "Dashboard" },
     { path: "/am/roles", icon: Briefcase, label: "Roles" },
+    { path: "/am/pipeline", icon: RefreshCw, label: "Pipe" },
     { path: "/am/analytics", icon: BarChart3, label: "Analytics" },
     { path: "/am/dropouts", icon: AlertTriangle, label: "Dropout Decisions" },
     { path: "/am/profile", icon: UserCircle, label: "Profile" },
@@ -83,7 +84,7 @@ export default function AccountManagerLayout({
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Sidebar */}
-      <div className="w-64 bg-white shadow-xl border-r border-slate-200">
+      <div className="w-64 bg-white shadow-xl border-r border-slate-200 flex flex-col">
         <div className="p-6 border-b border-slate-200">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg flex items-center justify-center">
@@ -158,7 +159,7 @@ export default function AccountManagerLayout({
           </div>
         )}
         
-        <nav className="mt-6 px-4">
+        <nav className="flex-1 px-4 py-6 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -188,22 +189,21 @@ export default function AccountManagerLayout({
               </Link>
             );
           })}
-
-          <div className="mt-8 pt-8 border-t border-slate-200">
-            <button
-              onClick={logout}
-              className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-all duration-200"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="font-medium">Logout</span>
-            </button>
-          </div>
         </nav>
+        <div className="p-4 border-t border-slate-200">
+          <button
+            onClick={logout}
+            className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-all duration-200"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium">Logout</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white shadow-sm border-b border-slate-200 px-6 py-4">
+      <div className="flex-1 flex flex-col min-h-0">
+        <header className="bg-white shadow-sm border-b border-slate-200 px-6 py-4 flex-shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-slate-800">
               {navItems.find(item => item.path === location.pathname)?.label || "Dashboard"}
@@ -214,7 +214,7 @@ export default function AccountManagerLayout({
           </div>
         </header>
         
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-y-auto p-6">
           {children}
         </main>
       </div>

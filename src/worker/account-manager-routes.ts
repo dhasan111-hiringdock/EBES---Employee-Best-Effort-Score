@@ -157,10 +157,15 @@ app.get("/api/am/roles", amOnly, async (c) => {
       params.push(teamId);
     }
 
-    if (status === "active") {
-      query += " AND r.status = 'active'";
-    } else if (status === "non-active") {
-      query += " AND r.status != 'active'";
+    if (status) {
+      if (status === "active") {
+        query += " AND r.status = 'active'";
+      } else if (status === "non-active") {
+        query += " AND r.status != 'active'";
+      } else if (["lost", "cancelled", "deal", "on_hold", "no_answer"].includes(status)) {
+        query += " AND r.status = ?";
+        params.push(status);
+      }
     }
 
     query += " ORDER BY r.created_at DESC";
@@ -209,17 +214,26 @@ app.get("/api/am/roles", amOnly, async (c) => {
           .bind(role.id)
           .all();
 
-        // Get submission counts for this role
-        const submissions = await db
+        // Total submissions: all candidate-role associations (not discarded)
+        const totalSubsRow = await db
           .prepare(`
-            SELECT COUNT(*) as total_submissions
-            FROM recruiter_submissions
-            WHERE role_id = ?
+            SELECT COUNT(*) as total
+            FROM candidate_role_associations
+            WHERE role_id = ? AND is_discarded = 0
           `)
           .bind(role.id)
           .first();
 
-        const totalSubmissions = (submissions as any)?.total_submissions || 0;
+        const clientStatusCounts = await db
+          .prepare(`
+            SELECT 
+              SUM(CASE WHEN status = 'client_submitted' AND is_discarded = 0 THEN 1 ELSE 0 END) as under_client_evaluation,
+              SUM(CASE WHEN status = 'client_rejected' AND is_discarded = 0 THEN 1 ELSE 0 END) as submitted_to_client
+            FROM candidate_role_associations
+            WHERE role_id = ?
+          `)
+          .bind(role.id)
+          .first();
 
         return {
           ...role,
@@ -227,7 +241,9 @@ app.get("/api/am/roles", amOnly, async (c) => {
           interview_2_count: interviewMap[2],
           interview_3_count: interviewMap[3],
           total_interviews: interviewMap[1] + interviewMap[2] + interviewMap[3],
-          total_submissions: totalSubmissions,
+          total_submissions: (totalSubsRow as any)?.total || 0,
+          under_client_evaluation: (clientStatusCounts as any)?.under_client_evaluation || 0,
+          submitted_to_client: (clientStatusCounts as any)?.submitted_to_client || 0,
           has_pending_dropout: !!pendingStatus,
           pending_dropout_reason: pendingStatus ? (pendingStatus as any).reason : null,
           has_dropout: !!dropoutRequest,
@@ -241,6 +257,105 @@ app.get("/api/am/roles", amOnly, async (c) => {
   } catch (error) {
     return c.json({ error: "Failed to fetch roles" }, 500);
   }
+});
+
+// AM submit candidate to client (mark under client evaluation)
+app.post("/api/am/roles/:roleId/candidates/:candidateId/submit-to-client", amOnly, async (c) => {
+  const db = c.env.DB;
+  const amUser = c.get("amUser");
+  const roleId = c.req.param("roleId");
+  const candidateId = c.req.param("candidateId");
+
+  const role = await db.prepare("SELECT account_manager_id FROM am_roles WHERE id = ?").bind(roleId).first();
+  if (!role) return c.json({ error: "Role not found" }, 404);
+  if ((role as any).account_manager_id !== (amUser as any).id) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  await db.prepare(`
+    UPDATE candidate_role_associations
+    SET status = 'client_submitted',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE role_id = ? AND candidate_id = ? AND is_discarded = 0
+  `).bind(roleId, candidateId).run();
+
+  return c.json({ success: true });
+});
+
+// AM mark client rejection for a submitted candidate
+app.post("/api/am/roles/:roleId/candidates/:candidateId/client-reject", amOnly, async (c) => {
+  const db = c.env.DB;
+  const amUser = c.get("amUser");
+  const roleId = c.req.param("roleId");
+  const candidateId = c.req.param("candidateId");
+
+  const role = await db.prepare("SELECT account_manager_id FROM am_roles WHERE id = ?").bind(roleId).first();
+  if (!role) return c.json({ error: "Role not found" }, 404);
+  if ((role as any).account_manager_id !== (amUser as any).id) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  await db.prepare(`
+    UPDATE candidate_role_associations
+    SET status = 'client_rejected',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE role_id = ? AND candidate_id = ? AND is_discarded = 0
+  `).bind(roleId, candidateId).run();
+
+  return c.json({ success: true });
+});
+
+// AM pull out candidate from client evaluation back to submitted
+app.post("/api/am/roles/:roleId/candidates/:candidateId/pull-out", amOnly, async (c) => {
+  const db = c.env.DB;
+  const amUser = c.get("amUser");
+  const roleId = c.req.param("roleId");
+  const candidateId = c.req.param("candidateId");
+
+  const role = await db.prepare("SELECT account_manager_id FROM am_roles WHERE id = ?").bind(roleId).first();
+  if (!role) return c.json({ error: "Role not found" }, 404);
+  if ((role as any).account_manager_id !== (amUser as any).id) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  await db.prepare(`
+    UPDATE candidate_role_associations
+    SET status = 'submitted',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE role_id = ? AND candidate_id = ? AND is_discarded = 0 AND status = 'client_submitted'
+  `).bind(roleId, candidateId).run();
+
+  return c.json({ success: true });
+});
+
+// AM mark deal for a candidate and close role as deal
+app.post("/api/am/roles/:roleId/candidates/:candidateId/deal", amOnly, async (c) => {
+  const db = c.env.DB;
+  const amUser = c.get("amUser");
+  const roleId = c.req.param("roleId");
+  const candidateId = c.req.param("candidateId");
+
+  const role = await db.prepare("SELECT * FROM am_roles WHERE id = ?").bind(roleId).first();
+  if (!role) return c.json({ error: "Role not found" }, 404);
+  if ((role as any).account_manager_id !== (amUser as any).id) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  await db.prepare(`
+    UPDATE candidate_role_associations
+    SET status = 'deal',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE role_id = ? AND candidate_id = ?
+  `).bind(roleId, candidateId).run();
+
+  await db.prepare(`
+    UPDATE am_roles
+    SET status = 'deal',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).bind(roleId).run();
+
+  return c.json({ success: true });
 });
 
 // Create role
@@ -1651,6 +1766,117 @@ app.get("/api/am/ebes-score", amOnly, async (c) => {
     console.error("Error calculating EBES score:", error);
     return c.json({ error: "Failed to calculate EBES score" }, 500);
   }
+});
+
+// Role submissions for AM
+app.get("/api/am/role-submissions/:roleId", amOnly, async (c) => {
+  const db = c.env.DB;
+  const amUser = c.get("amUser");
+  const roleId = c.req.param("roleId");
+
+  const role = await db.prepare("SELECT account_manager_id FROM am_roles WHERE id = ?").bind(roleId).first();
+  if (!role) return c.json({ error: "Role not found" }, 404);
+  if ((role as any).account_manager_id !== (amUser as any).id) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  const rows = await db.prepare(`
+    SELECT 
+      cra.id as association_id,
+      cra.candidate_id,
+      c.candidate_code as candidate_code,
+      c.name as candidate_name,
+      c.email as candidate_email,
+      c.phone as candidate_phone,
+      c.resume_url as candidate_resume_url,
+      cra.status as association_status,
+      cra.submission_date,
+      cra.is_discarded,
+      cra.discarded_at,
+      cra.discarded_reason,
+      u.name as recruiter_name,
+      u.user_code as recruiter_code,
+      rs.id as submission_id,
+      ROUND(rs.cv_match_percent / 20.0, 2) as score,
+      rs.rm_validation_status,
+      rs.rm_rate_bill,
+      rs.rm_rate_pay,
+      rs.rm_location,
+      rs.rm_work_type,
+      rs.am_notes,
+      rs.am_reviewed_at
+    FROM candidate_role_associations cra
+    LEFT JOIN candidates c ON cra.candidate_id = c.id
+    LEFT JOIN users u ON cra.recruiter_user_id = u.id
+    LEFT JOIN recruiter_submissions rs 
+      ON rs.role_id = cra.role_id 
+     AND rs.recruiter_user_id = cra.recruiter_user_id 
+     AND rs.entry_type = 'submission'
+     AND DATE(rs.submission_date) = DATE(cra.submission_date)
+    WHERE cra.role_id = ?
+    ORDER BY cra.submission_date DESC, cra.id DESC
+  `).bind(roleId).all();
+
+  const results = rows.results || [];
+  return c.json({
+    under_consideration: results.filter((r: any) => (r as any).is_discarded !== 1),
+    rejected: results.filter((r: any) => (r as any).is_discarded === 1),
+  });
+});
+
+// AM discard candidate submission
+app.post("/api/am/roles/:roleId/candidates/:candidateId/discard", amOnly, async (c) => {
+  const db = c.env.DB;
+  const amUser = c.get("amUser");
+  const roleId = c.req.param("roleId");
+  const candidateId = c.req.param("candidateId");
+  const { reason } = await c.req.json();
+
+  const role = await db.prepare("SELECT account_manager_id FROM am_roles WHERE id = ?").bind(roleId).first();
+  if (!role) return c.json({ error: "Role not found" }, 404);
+  if ((role as any).account_manager_id !== (amUser as any).id) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  await db.prepare(`
+    UPDATE candidate_role_associations
+    SET is_discarded = 1,
+        discarded_reason = COALESCE(?, 'Discarded by AM'),
+        discarded_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE role_id = ? AND candidate_id = ? AND is_discarded = 0
+  `).bind(reason || null, roleId, candidateId).run();
+
+  return c.json({ success: true });
+});
+
+// AM review/update submission notes
+app.put("/api/am/submissions/:id/review", amOnly, async (c) => {
+  const db = c.env.DB;
+  const amUser = c.get("amUser");
+  const id = c.req.param("id");
+  const body = await c.req.json();
+
+  const sub = await db.prepare(`
+    SELECT rs.*, ar.account_manager_id 
+    FROM recruiter_submissions rs 
+    LEFT JOIN am_roles ar ON rs.role_id = ar.id
+    WHERE rs.id = ? AND rs.entry_type = 'submission'
+  `).bind(id).first();
+  if (!sub) return c.json({ error: "Submission not found" }, 404);
+  if ((sub as any).account_manager_id !== (amUser as any).id) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  await db.prepare(`
+    UPDATE recruiter_submissions SET
+      am_notes = COALESCE(?, am_notes),
+      am_reviewed_at = CURRENT_TIMESTAMP,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).bind(body.am_notes || null, id).run();
+
+  return c.json({ success: true });
 });
 
 export default app;

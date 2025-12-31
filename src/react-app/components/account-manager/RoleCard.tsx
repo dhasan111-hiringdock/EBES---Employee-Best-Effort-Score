@@ -1,4 +1,4 @@
-import { Edit, Trash2, RefreshCw, Plus } from "lucide-react";
+import { Edit, Trash2, RefreshCw, Plus, Eye } from "lucide-react";
 
 interface Role {
   id: number;
@@ -13,6 +13,8 @@ interface Role {
   interview_3_count: number;
   total_interviews: number;
   total_submissions: number;
+  under_client_evaluation?: number;
+  submitted_to_client?: number;
   has_pending_dropout?: boolean;
   pending_dropout_reason?: string;
   has_dropout?: boolean;
@@ -25,6 +27,7 @@ interface RoleCardProps {
   onDelete: () => void;
   onChangeStatus: () => void;
   onAddInterview: () => void;
+  onViewSubmissions?: () => void;
 }
 
 export default function RoleCard({
@@ -33,6 +36,7 @@ export default function RoleCard({
   onDelete,
   onChangeStatus,
   onAddInterview,
+  onViewSubmissions,
 }: RoleCardProps) {
   const statusColors: Record<string, string> = {
     active: "bg-green-100 text-green-700 border-green-200",
@@ -80,9 +84,19 @@ export default function RoleCard({
         <p className="text-sm text-gray-600 mb-3 line-clamp-2">{role.description}</p>
       )}
 
-      <div className="bg-indigo-50 rounded-lg p-3 mb-3 border border-indigo-100">
-        <p className="text-xs text-indigo-700 mb-1 font-semibold">Submissions</p>
-        <p className="text-2xl font-bold text-indigo-600">{role.total_submissions}</p>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-100">
+          <p className="text-xs text-indigo-700 mb-1 font-semibold">Total Submissions</p>
+          <p className="text-2xl font-bold text-indigo-600">{role.total_submissions}</p>
+        </div>
+        <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+          <p className="text-xs text-blue-700 mb-1 font-semibold">Under Evaluation</p>
+          <p className="text-2xl font-bold text-blue-600">{role.under_client_evaluation ?? 0}</p>
+        </div>
+        <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+          <p className="text-xs text-gray-700 mb-1 font-semibold">Submitted to Client</p>
+          <p className="text-2xl font-bold text-gray-900">{role.submitted_to_client ?? 0}</p>
+        </div>
       </div>
 
       <div className="bg-gray-50 rounded-lg p-3 mb-3">
@@ -98,7 +112,7 @@ export default function RoleCard({
           </div>
           <div>
             <p className="text-lg font-bold text-indigo-600">{role.interview_3_count}</p>
-            <p className="text-xs text-gray-500">Final</p>
+            <p className="text-xs text-gray-500">Decision Pending</p>
           </div>
         </div>
         <div className="mt-2 pt-2 border-t border-gray-200">
@@ -132,6 +146,14 @@ export default function RoleCard({
         >
           <Plus className="w-3 h-3" />
           Entry
+        </button>
+        <button
+          onClick={onViewSubmissions}
+          className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          title="View submissions"
+        >
+          <Eye className="w-3 h-3" />
+          Submissions
         </button>
         <button
           onClick={onDelete}

@@ -48,6 +48,7 @@ export default function RecruitmentManagerLayout({ children }: RecruitmentManage
     { path: "/rm", icon: LayoutDashboard, label: "Dashboard" },
     { path: "/rm/analytics", icon: BarChart3, label: "Analytics" },
     { path: "/rm/roles", icon: Target, label: "Roles" },
+    { path: "/rm/pipeline", icon: LayoutDashboard, label: "Pipe" },
     { path: "/rm/team", icon: Users, label: "Team Management" },
     { path: "/rm/dropouts", icon: AlertTriangle, label: "Dropout Requests" },
     { path: "/rm/profile", icon: UserCircle, label: "Profile" },
@@ -60,7 +61,7 @@ export default function RecruitmentManagerLayout({ children }: RecruitmentManage
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Sidebar */}
-      <div className="w-64 bg-white shadow-xl border-r border-slate-200">
+      <div className="w-64 bg-white shadow-xl border-r border-slate-200 flex flex-col">
         <div className="p-6 border-b border-slate-200">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center">
@@ -86,7 +87,7 @@ export default function RecruitmentManagerLayout({ children }: RecruitmentManage
           </div>
         </div>
         
-        <nav className="mt-6 px-4">
+        <nav className="flex-1 px-4 py-6 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -116,17 +117,16 @@ export default function RecruitmentManagerLayout({ children }: RecruitmentManage
               </Link>
             );
           })}
-
-          <div className="mt-8 pt-8 border-t border-slate-200">
-            <button
-              onClick={logout}
-              className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-all duration-200"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="font-medium">Logout</span>
-            </button>
-          </div>
         </nav>
+        <div className="p-4 border-t border-slate-200">
+          <button
+            onClick={logout}
+            className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-all duration-200"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium">Logout</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}

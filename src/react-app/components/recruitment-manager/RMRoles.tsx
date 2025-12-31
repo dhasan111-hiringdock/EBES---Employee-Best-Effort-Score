@@ -21,6 +21,7 @@ import { fetchWithAuth } from '@/react-app/utils/api';
 import CreateRoleModal from './CreateRoleModal';
 import EditRoleModal from './EditRoleModal';
 import AssignRecruiterModal from './AssignRecruiterModal';
+import { Trash2, Save } from 'lucide-react';
 
 interface Role {
   id: number;
@@ -38,6 +39,9 @@ interface Role {
   account_manager_name: string;
   account_manager_code: string;
   created_at: string;
+  total_submissions?: number;
+  under_evaluation?: number;
+  submitted_to_client?: number;
 }
 
 interface Client {
@@ -61,12 +65,33 @@ interface RoleStats {
   no_answer: number;
 }
 
+interface RoleSubmission {
+  association_id: number;
+  candidate_id: number;
+  candidate_name: string;
+  candidate_email: string;
+  candidate_phone: string;
+  submission_date: string;
+  is_discarded: number;
+  discarded_at?: string;
+  discarded_reason?: string;
+  recruiter_name: string;
+  recruiter_code: string;
+  submission_id?: number;
+  cv_match_percent?: number;
+  rm_validation_status?: string;
+  rm_rate_bill?: number;
+  rm_rate_pay?: number;
+  rm_location?: string;
+  rm_work_type?: string;
+}
+
 export default function RMRoles() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('active');
   const [clientFilter, setClientFilter] = useState<string>('');
   const [teamFilter, setTeamFilter] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -75,6 +100,12 @@ export default function RMRoles() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [submissions, setSubmissions] = useState<{ under_consideration: RoleSubmission[]; rejected: RoleSubmission[] }>({
+    under_consideration: [],
+    rejected: [],
+  });
+  const [reviewEdits, setReviewEdits] = useState<Record<number, { rm_validation_status?: string; rm_rate_bill?: string; rm_rate_pay?: string; rm_location?: string; rm_work_type?: string; rm_notes?: string }>>({});
 
   useEffect(() => {
     fetchInitialData();
@@ -83,6 +114,15 @@ export default function RMRoles() {
   useEffect(() => {
     fetchRoles();
   }, [statusFilter, clientFilter, teamFilter]);
+
+  useEffect(() => {
+    if (selectedRole) {
+      loadRoleSubmissions(selectedRole.id);
+    } else {
+      setSubmissions({ under_consideration: [], rejected: [] });
+      setReviewEdits({});
+    }
+  }, [selectedRole]);
 
   const fetchInitialData = async () => {
     try {
@@ -203,6 +243,49 @@ export default function RMRoles() {
 
   const handleEditSuccess = () => {
     fetchRoles();
+  };
+
+  const loadRoleSubmissions = async (roleId: number) => {
+    try {
+      setLoadingSubmissions(true);
+      const res = await fetchWithAuth(`/api/rm/role-submissions/${roleId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSubmissions(data);
+      }
+    } catch (e) {
+    } finally {
+      setLoadingSubmissions(false);
+    }
+  };
+
+  const updateReviewEdit = (submissionId: number, field: string, value: string) => {
+    setReviewEdits(prev => ({
+      ...prev,
+      [submissionId]: { ...(prev[submissionId] || {}), [field]: value }
+    }));
+  };
+
+  const saveReview = async (submissionId?: number) => {
+    if (!submissionId) return;
+    const payload = reviewEdits[submissionId] || {};
+    const res = await fetchWithAuth(`/api/rm/submissions/${submissionId}/review`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    if (res.ok && selectedRole) {
+      await loadRoleSubmissions(selectedRole.id);
+    }
+  };
+
+  const discardCandidate = async (roleId: number, candidateId: number) => {
+    const res = await fetchWithAuth(`/api/rm/roles/${roleId}/candidates/${candidateId}/discard`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    if (res.ok && selectedRole) {
+      await loadRoleSubmissions(selectedRole.id);
+    }
   };
 
   return (
@@ -335,6 +418,11 @@ export default function RMRoles() {
             >
               <option value="">All Statuses</option>
               <option value="active">Active Only</option>
+              <option value="deal">Deal</option>
+              <option value="lost">Lost</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="on_hold">On Hold</option>
+              <option value="no_answer">No Answer</option>
               <option value="non-active">Non-Active</option>
             </select>
           </div>
@@ -417,6 +505,15 @@ export default function RMRoles() {
                     Status
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    Submissions
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    Under Evaluation
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    Submitted to Client
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                     Client
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
@@ -466,6 +563,15 @@ export default function RMRoles() {
                           <StatusIcon className="w-3.5 h-3.5" />
                           {statusConfig.label}
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="text-sm font-semibold text-slate-800">{role.total_submissions ?? 0}</p>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="text-sm font-semibold text-blue-700">{role.under_evaluation ?? 0}</p>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="text-sm font-semibold text-slate-800">{role.submitted_to_client ?? 0}</p>
                       </td>
                       <td className="px-6 py-4">
                         <div>
@@ -658,6 +764,161 @@ export default function RMRoles() {
                 <Edit className="w-5 h-5" />
                 Edit Role
               </button>
+            </div>
+            <div className="px-8 pb-8">
+              <div className="mt-6 bg-white border border-slate-200 rounded-2xl">
+                <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-5 h-5 text-indigo-600" />
+                    <span className="font-semibold text-slate-800">Submissions</span>
+                  </div>
+                  {loadingSubmissions && (
+                    <div className="text-sm text-slate-500">Loading…</div>
+                  )}
+                </div>
+                <div className="p-6">
+                  {submissions.under_consideration.length === 0 && submissions.rejected.length === 0 ? (
+                    <div className="text-center py-8 bg-slate-50 rounded-xl">
+                      <Briefcase className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+                      <p className="text-slate-600">No submissions yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-8">
+                      {submissions.under_consideration.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <CheckCircle className="w-4 h-4 text-emerald-600" />
+                            <span className="text-sm font-semibold text-slate-700">Under Consideration</span>
+                          </div>
+                          <div className="space-y-3">
+                            {submissions.under_consideration.map(item => (
+                              <div key={item.association_id} className="border border-slate-200 rounded-xl p-4">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-slate-800">{item.candidate_name}</span>
+                                      <span className="text-xs text-slate-500 font-mono">{item.candidate_id}</span>
+                                    </div>
+                                    <div className="text-xs text-slate-600 mt-1">
+                                      {item.candidate_email || 'No email'} · {item.candidate_phone || 'No phone'}
+                                    </div>
+                                    <div className="text-xs text-slate-500 mt-1">
+                                      Submitted on {new Date(item.submission_date).toLocaleDateString()}
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+                                      <input
+                                        type="text"
+                                        placeholder="Validation status"
+                                        defaultValue={item.rm_validation_status || ''}
+                                        onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_validation_status', e.target.value)}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        disabled={!item.submission_id}
+                                      />
+                                      <input
+                                        type="text"
+                                        placeholder="Rate bill"
+                                        defaultValue={item.rm_rate_bill !== undefined ? String(item.rm_rate_bill) : ''}
+                                        onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_rate_bill', e.target.value)}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        disabled={!item.submission_id}
+                                      />
+                                      <input
+                                        type="text"
+                                        placeholder="Rate pay"
+                                        defaultValue={item.rm_rate_pay !== undefined ? String(item.rm_rate_pay) : ''}
+                                        onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_rate_pay', e.target.value)}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        disabled={!item.submission_id}
+                                      />
+                                      <input
+                                        type="text"
+                                        placeholder="Location"
+                                        defaultValue={item.rm_location || ''}
+                                        onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_location', e.target.value)}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        disabled={!item.submission_id}
+                                      />
+                                      <input
+                                        type="text"
+                                        placeholder="Work type"
+                                        defaultValue={item.rm_work_type || ''}
+                                        onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_work_type', e.target.value)}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        disabled={!item.submission_id}
+                                      />
+                                      <input
+                                        type="text"
+                                        placeholder="Notes"
+                                        onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_notes', e.target.value)}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        disabled={!item.submission_id}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col items-end gap-2">
+                                    <button
+                                      onClick={() => discardCandidate(selectedRole!.id, item.candidate_id)}
+                                      className="px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                      Discard
+                                    </button>
+                                    <button
+                                      onClick={() => saveReview(item.submission_id)}
+                                      disabled={!item.submission_id}
+                                      className="px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                      <Save className="w-4 h-4" />
+                                      Save Review
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="mt-3 text-xs text-slate-500">
+                                  Recruiter: {item.recruiter_name} ({item.recruiter_code})
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {submissions.rejected.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <XCircle className="w-4 h-4 text-red-600" />
+                            <span className="text-sm font-semibold text-slate-700">Rejected</span>
+                          </div>
+                          <div className="space-y-3">
+                            {submissions.rejected.map(item => (
+                              <div key={item.association_id} className="border border-slate-200 rounded-xl p-4 bg-red-50/40">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-slate-800">{item.candidate_name}</span>
+                                      <span className="text-xs text-slate-500 font-mono">{item.candidate_id}</span>
+                                    </div>
+                                    <div className="text-xs text-slate-600 mt-1">
+                                      {item.candidate_email || 'No email'} · {item.candidate_phone || 'No phone'}
+                                    </div>
+                                    <div className="text-xs text-slate-500 mt-1">
+                                      Discarded on {item.discarded_at ? new Date(item.discarded_at).toLocaleDateString() : 'N/A'}
+                                    </div>
+                                    <div className="text-xs text-slate-600 mt-1">
+                                      Reason: {item.discarded_reason || 'N/A'}
+                                    </div>
+                                  </div>
+                                  <div className="text-xs text-slate-500">
+                                    Recruiter: {item.recruiter_name} ({item.recruiter_code})
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

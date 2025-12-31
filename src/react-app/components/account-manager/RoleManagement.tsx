@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Briefcase } from "lucide-react";
+import { Plus, Briefcase, X, CheckCircle, XCircle, Save } from "lucide-react";
 import CreateRoleModal from "./CreateRoleModal";
 import EditRoleModal from "./EditRoleModal";
 import DeleteRoleModal from "./DeleteRoleModal";
@@ -23,6 +23,8 @@ interface Role {
   interview_3_count: number;
   total_interviews: number;
   total_submissions: number;
+  under_client_evaluation?: number;
+  submitted_to_client?: number;
   has_dropout?: boolean;
   dropout_decision?: string;
 }
@@ -41,6 +43,10 @@ export default function RoleManagement({ clientId, teamId }: RoleManagementProps
   const [deletingRole, setDeletingRole] = useState<Role | null>(null);
   const [changingStatusRole, setChangingStatusRole] = useState<Role | null>(null);
   const [addingInterviewRole, setAddingInterviewRole] = useState<Role | null>(null);
+  const [submissionsRole, setSubmissionsRole] = useState<Role | null>(null);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [roleSubmissions, setRoleSubmissions] = useState<{ under_consideration: any[]; rejected: any[] }>({ under_consideration: [], rejected: [] });
+  const [notesEdits, setNotesEdits] = useState<Record<number, string>>({});
 
   useEffect(() => {
     fetchRoles();
@@ -68,6 +74,86 @@ export default function RoleManagement({ clientId, teamId }: RoleManagementProps
 
   const activeRolesCount = activeTab === "active" ? roles.length : 0;
   const showLimitWarning = activeRolesCount >= 25;
+
+  const openSubmissions = (role: Role) => {
+    setSubmissionsRole(role);
+    loadRoleSubmissions(role.id);
+  };
+
+  const loadRoleSubmissions = async (roleId: number) => {
+    try {
+      setLoadingSubmissions(true);
+      const res = await fetchWithAuth(`/api/am/role-submissions/${roleId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRoleSubmissions(data);
+      }
+    } catch (e) {
+    } finally {
+      setLoadingSubmissions(false);
+    }
+  };
+
+  const discardCandidate = async (roleId: number, candidateId: number) => {
+    const res = await fetchWithAuth(`/api/am/roles/${roleId}/candidates/${candidateId}/discard`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    if (res.ok && submissionsRole) {
+      await loadRoleSubmissions(submissionsRole.id);
+    }
+  };
+
+  const saveNotes = async (submissionId?: number) => {
+    if (!submissionId) return;
+    const res = await fetchWithAuth(`/api/am/submissions/${submissionId}/review`, {
+      method: 'PUT',
+      body: JSON.stringify({ am_notes: notesEdits[submissionId] || '' }),
+    });
+    if (res.ok && submissionsRole) {
+      await loadRoleSubmissions(submissionsRole.id);
+    }
+  };
+
+  const submitToClient = async (roleId: number, candidateId: number) => {
+    const res = await fetchWithAuth(`/api/am/roles/${roleId}/candidates/${candidateId}/submit-to-client`, {
+      method: 'POST',
+    });
+    if (res.ok && submissionsRole) {
+      await loadRoleSubmissions(submissionsRole.id);
+      await fetchRoles();
+    }
+  };
+
+  const clientReject = async (roleId: number, candidateId: number) => {
+    const res = await fetchWithAuth(`/api/am/roles/${roleId}/candidates/${candidateId}/client-reject`, {
+      method: 'POST',
+    });
+    if (res.ok && submissionsRole) {
+      await loadRoleSubmissions(submissionsRole.id);
+      await fetchRoles();
+    }
+  };
+
+  const pullOut = async (roleId: number, candidateId: number) => {
+    const res = await fetchWithAuth(`/api/am/roles/${roleId}/candidates/${candidateId}/pull-out`, {
+      method: 'POST',
+    });
+    if (res.ok && submissionsRole) {
+      await loadRoleSubmissions(submissionsRole.id);
+      await fetchRoles();
+    }
+  };
+
+  const markDeal = async (roleId: number, candidateId: number) => {
+    const res = await fetchWithAuth(`/api/am/roles/${roleId}/candidates/${candidateId}/deal`, {
+      method: 'POST',
+    });
+    if (res.ok && submissionsRole) {
+      await loadRoleSubmissions(submissionsRole.id);
+      await fetchRoles();
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -147,6 +233,7 @@ export default function RoleManagement({ clientId, teamId }: RoleManagementProps
                   onDelete={() => setDeletingRole(role)}
                   onChangeStatus={() => setChangingStatusRole(role)}
                   onAddInterview={() => setAddingInterviewRole(role)}
+                  onViewSubmissions={() => openSubmissions(role)}
                 />
               ))}
             </div>
@@ -315,6 +402,212 @@ export default function RoleManagement({ clientId, teamId }: RoleManagementProps
             setAddingInterviewRole(null);
           }}
         />
+      )}
+      
+      {submissionsRole && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+            <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-indigo-700 px-6 py-4 flex items-center justify-between text-white">
+              <div>
+                <h3 className="text-xl font-bold">Role Submissions</h3>
+                <p className="text-indigo-100 text-xs mt-1 font-mono">{submissionsRole.role_code}</p>
+              </div>
+              <button onClick={() => setSubmissionsRole(null)} className="p-2 rounded hover:bg-white/20">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-64px)]">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Briefcase className="w-5 h-5 text-indigo-600" />
+                  <span className="font-semibold text-gray-800">Submissions</span>
+                </div>
+                {loadingSubmissions && <span className="text-sm text-gray-500">Loading…</span>}
+              </div>
+              {roleSubmissions.under_consideration.length === 0 && roleSubmissions.rejected.length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-xl">
+                  <Briefcase className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-600">No submissions yet</p>
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {roleSubmissions.under_consideration.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <CheckCircle className="w-4 h-4 text-emerald-600" />
+                        <span className="text-sm font-semibold text-gray-700">Under Consideration</span>
+                      </div>
+                      <div className="space-y-3">
+                        {roleSubmissions.under_consideration.map((item: any) => (
+                          <div key={item.association_id} className="border border-gray-200 rounded-xl p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                              <div className="md:col-span-9">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-gray-900">{item.candidate_name}</span>
+                                  <span className="text-xs text-gray-500 font-mono">{item.candidate_code || item.candidate_id}</span>
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  {item.candidate_email || 'No email'} · {item.candidate_phone || 'No phone'}
+                                </div>
+                                <div className="text-xs text-gray-500 mt-1">
+                                  Submitted on {new Date(item.submission_date).toLocaleDateString()}
+                                </div>
+                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                    <p className="text-xs text-gray-600">Location</p>
+                                    <p className="text-sm font-medium text-gray-900">{item.rm_location || '-'}</p>
+                                  </div>
+                                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                    <p className="text-xs text-gray-600">Contract Type</p>
+                                    <p className="text-sm font-medium text-gray-900">{item.rm_work_type || '-'}</p>
+                                  </div>
+                                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                    <p className="text-xs text-gray-600">RM Validation</p>
+                                    <p className="text-sm font-medium text-gray-900">{item.rm_validation_status || '-'}</p>
+                                  </div>
+                                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                    <p className="text-xs text-gray-600">Rates</p>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      {item.rm_rate_bill ? `Bill: ${item.rm_rate_bill}` : '-'}
+                                      {item.rm_rate_pay ? ` · Pay: ${item.rm_rate_pay}` : ''}
+                                    </p>
+                                  </div>
+                                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                    <p className="text-xs text-gray-600">Score</p>
+                                    <p className="text-sm font-medium text-gray-900">{item.score != null ? Number(item.score).toFixed(2) : '-'}</p>
+                                  </div>
+                                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                    <p className="text-xs text-gray-600">Current Status</p>
+                                    <p className="text-sm font-medium text-gray-900">{item.association_status || 'submitted'}</p>
+                                  </div>
+                                </div>
+                                {item.candidate_resume_url && (
+                                  <div className="mt-2">
+                                    <a href={item.candidate_resume_url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800">
+                                      View CV
+                                    </a>
+                                  </div>
+                                )}
+                                <textarea
+                                  placeholder="Add notes"
+                                  defaultValue={item.am_notes || ''}
+                                  onChange={(e) => setNotesEdits(prev => ({ ...prev, [(item.submission_id || 0)]: e.target.value }))}
+                                  className="mt-3 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                  rows={2}
+                                  disabled={!item.submission_id}
+                                />
+                                <div className="mt-3 text-xs text-gray-500">
+                                  Recruiter: {item.recruiter_name} ({item.recruiter_code})
+                                </div>
+                              </div>
+                              <div className="md:col-span-3 flex md:flex-col gap-2 justify-end">
+                                {item.association_status === 'deal' ? (
+                                  <span className="px-3 py-2 text-xs text-green-700 border border-green-200 rounded-lg bg-green-50 justify-center flex items-center gap-1">
+                                    <CheckCircle className="w-4 h-4" />
+                                    Deal
+                                  </span>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <select
+                                      defaultValue=""
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        if (!v) return;
+                                        if (item.association_status === 'client_submitted') {
+                                          if (v === 'client_reject') clientReject(submissionsRole.id, item.candidate_id);
+                                          else if (v === 'pull_out') pullOut(submissionsRole.id, item.candidate_id);
+                                          else if (v === 'deal') markDeal(submissionsRole.id, item.candidate_id);
+                                        } else {
+                                          if (v === 'submit_to_client') submitToClient(submissionsRole.id, item.candidate_id);
+                                          else if (v === 'reject') discardCandidate(submissionsRole.id, item.candidate_id);
+                                        }
+                                        e.currentTarget.value = '';
+                                      }}
+                                      className="px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                                    >
+                                      <option value="" disabled>
+                                        Choose Action
+                                      </option>
+                                      {item.association_status === 'client_submitted' ? (
+                                        <>
+                                          <option value="client_reject">Discarded by Client</option>
+                                          <option value="pull_out">Pull Out</option>
+                                          <option value="deal">Deal</option>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <option value="submit_to_client">Submit to Client</option>
+                                          <option value="reject">Reject</option>
+                                        </>
+                                      )}
+                                    </select>
+                                  </div>
+                                )}
+                                <button
+                                  onClick={() => saveNotes(item.submission_id)}
+                                  disabled={!item.submission_id}
+                                  className="px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1 disabled:opacity-50 justify-center"
+                                >
+                                  <Save className="w-4 h-4" />
+                                  Save Notes
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {roleSubmissions.rejected.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <XCircle className="w-4 h-4 text-red-600" />
+                        <span className="text-sm font-semibold text-gray-700">Rejected</span>
+                      </div>
+                      <div className="space-y-3">
+                        {roleSubmissions.rejected.map((item: any) => (
+                          <div key={item.association_id} className="border border-gray-200 rounded-xl p-4 bg-red-50/40">
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                              <div className="md:col-span-9">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-gray-900">{item.candidate_name}</span>
+                                  <span className="text-xs text-gray-500 font-mono">{item.candidate_code || item.candidate_id}</span>
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  {item.candidate_email || 'No email'} · {item.candidate_phone || 'No phone'}
+                                </div>
+                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  <div className="bg-white border border-red-200 rounded-lg p-3">
+                                    <p className="text-xs text-red-700">Discarded On</p>
+                                    <p className="text-sm font-medium text-red-700">{item.discarded_at ? new Date(item.discarded_at).toLocaleDateString() : 'N/A'}</p>
+                                  </div>
+                                  <div className="bg-white border border-red-200 rounded-lg p-3">
+                                    <p className="text-xs text-red-700">Reason</p>
+                                    <p className="text-sm font-medium text-red-700">{item.discarded_reason || 'N/A'}</p>
+                                  </div>
+                                  <div className="bg-white border border-red-200 rounded-lg p-3">
+                                    <p className="text-xs text-red-700">RM Validation</p>
+                                    <p className="text-sm font-medium text-red-700">{item.rm_validation_status || '-'}</p>
+                                  </div>
+                                </div>
+                                <div className="mt-3 text-xs text-gray-500">
+                                  Recruiter: {item.recruiter_name} ({item.recruiter_code})
+                                </div>
+                              </div>
+                              <div className="md:col-span-3 flex md:flex-col gap-2 justify-end">
+                                <span className="px-3 py-2 text-xs text-gray-600">Discarded</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

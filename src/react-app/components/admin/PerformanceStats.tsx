@@ -32,6 +32,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Brush,
 } from "recharts";
 import ReportDownloadModal, { type ReportFilters } from "./ReportDownloadModal";
 
@@ -136,6 +137,8 @@ export default function PerformanceStats() {
   const [onlyActiveRoles, setOnlyActiveRoles] = useState<boolean>(false);
   const [sortKey, setSortKey] = useState<'ebesScore'|'totalDeals'|'totalSubmissions'|'totalInterviews'|'activeRoles'>('ebesScore');
   const [sortOrder, setSortOrder] = useState<'asc'|'desc'>('desc');
+  const [activeRoleSegment, setActiveRoleSegment] = useState<number | null>(null);
+  const [activePerformanceSegment, setActivePerformanceSegment] = useState<number | null>(null);
 
   useEffect(() => {
     fetchInitialData();
@@ -801,14 +804,24 @@ const generatePDFReport = (data: UserStats[], fields: string[]) => {
                   outerRadius={100}
                   fill="#8884d8"
                   dataKey="value"
+                  isAnimationActive
                 >
                   {roleDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.color} 
+                      onClick={() => setActiveRoleSegment(index)} 
+                    />
                   ))}
                 </Pie>
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
+            {activeRoleSegment != null && (
+              <div className="mt-3 text-sm text-gray-700">
+                Selected: <span className="font-semibold">{roleDistribution[activeRoleSegment].name}</span> — {roleDistribution[activeRoleSegment].value}
+              </div>
+            )}
           </div>
 
           {/* Performance Distribution */}
@@ -828,14 +841,24 @@ const generatePDFReport = (data: UserStats[], fields: string[]) => {
                   outerRadius={100}
                   fill="#8884d8"
                   dataKey="value"
+                  isAnimationActive
                 >
                   {performanceDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.color} 
+                      onClick={() => setActivePerformanceSegment(index)} 
+                    />
                   ))}
                 </Pie>
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
+            {activePerformanceSegment != null && (
+              <div className="mt-3 text-sm text-gray-700">
+                Selected: <span className="font-semibold">{performanceDistribution[activePerformanceSegment].name}</span> — {performanceDistribution[activePerformanceSegment].value}
+              </div>
+            )}
           </div>
 
           {/* Average EBES by Role */}
@@ -853,6 +876,7 @@ const generatePDFReport = (data: UserStats[], fields: string[]) => {
                   contentStyle={{ backgroundColor: '#fff', border: '2px solid #e5e7eb', borderRadius: '8px' }}
                 />
                 <Bar dataKey="avgScore" fill="#6366f1" name="Average EBES Score" radius={[8, 8, 0, 0]} />
+                <Brush dataKey="role" height={20} travellerWidth={10} />
               </BarChart>
             </ResponsiveContainer>
           </div>

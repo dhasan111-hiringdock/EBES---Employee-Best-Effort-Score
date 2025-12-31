@@ -1,0 +1,9 @@
+ALTER TABLE recruiter_submissions ADD COLUMN rm_validation_status TEXT;
+ALTER TABLE recruiter_submissions ADD COLUMN rm_rate_bill REAL;
+ALTER TABLE recruiter_submissions ADD COLUMN rm_rate_pay REAL;
+ALTER TABLE recruiter_submissions ADD COLUMN rm_location TEXT;
+ALTER TABLE recruiter_submissions ADD COLUMN rm_work_type TEXT;
+ALTER TABLE recruiter_submissions ADD COLUMN rm_notes TEXT;
+ALTER TABLE recruiter_submissions ADD COLUMN rm_reviewed_at TIMESTAMP;
+ALTER TABLE recruiter_submissions ADD COLUMN am_notes TEXT;
+ALTER TABLE recruiter_submissions ADD COLUMN am_reviewed_at TIMESTAMP;

@@ -7,6 +7,7 @@ import RMTeamManagement from "@/react-app/components/recruitment-manager/RMTeamM
 import RMProfile from "@/react-app/components/recruitment-manager/RMProfile";
 import CompanyPage from "@/react-app/pages/CompanyPage";
 import DropoutRequests from "@/react-app/components/recruitment-manager/DropoutRequests";
+import Pipeline from "@/react-app/components/recruitment-manager/Pipeline";
 
 export default function RecruitmentManagerDashboard() {
   return (
@@ -15,6 +16,7 @@ export default function RecruitmentManagerDashboard() {
         <Route path="/" element={<RMDashboard />} />
         <Route path="/analytics" element={<RMAnalytics />} />
         <Route path="/roles" element={<RMRoles />} />
+        <Route path="/pipeline" element={<Pipeline />} />
         <Route path="/team" element={<RMTeamManagement />} />
         <Route path="/dropouts" element={<DropoutRequests />} />
         <Route path="/company" element={<CompanyPage />} />

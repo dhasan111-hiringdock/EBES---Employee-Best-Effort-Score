@@ -6,7 +6,7 @@ import {
   Activity, Briefcase
 } from 'lucide-react';
 import { fetchWithAuth } from '@/react-app/utils/api';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, Brush } from 'recharts';
 import ReportDownloadModal, { type ReportFilters } from '@/react-app/components/admin/ReportDownloadModal';
 
 interface AnalyticsData {
@@ -904,16 +904,17 @@ export default function RMAnalytics() {
             </div>
           </div>
           <div style={{ width: '100%', height: 260 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={analytics.dropout_reasons}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="reason" tick={{ fontSize: 12 }} stroke="#64748b" />
-                <YAxis stroke="#64748b" tick={{ fontSize: 12 }} />
-                <Tooltip contentStyle={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }} />
-                <Legend />
-                <Bar dataKey="count" name="Count" fill="#ef4444" />
-              </BarChart>
-            </ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={analytics.dropout_reasons}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="reason" tick={{ fontSize: 12 }} stroke="#64748b" />
+              <YAxis stroke="#64748b" tick={{ fontSize: 12 }} />
+              <Tooltip contentStyle={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }} />
+              <Legend />
+              <Bar dataKey="count" name="Count" fill="#ef4444" />
+              <Brush dataKey="reason" height={20} travellerWidth={10} />
+            </BarChart>
+          </ResponsiveContainer>
           </div>
         </div>
       )}
@@ -980,6 +981,7 @@ export default function RMAnalytics() {
                 activeDot={{ r: 6 }}
                 name="EBES Score"
               />
+              <Brush dataKey="recorded_at" height={20} travellerWidth={10} />
             </LineChart>
           </ResponsiveContainer>
 

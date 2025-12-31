@@ -174,7 +174,7 @@ export default function AddSubmissionModal({ client, selectedDate, onClose, onSu
           setSubmissionError('Submission blocked: CV Matching Percentage must be at least 85%');
           return false;
         }
-        await fetchWithAuth("/api/recruiter/submissions", {
+        const resp = await fetchWithAuth("/api/recruiter/submissions", {
           method: "POST",
           body: JSON.stringify({
             ...baseData,
@@ -183,8 +183,19 @@ export default function AddSubmissionModal({ client, selectedDate, onClose, onSu
             cv_match_percent: cvMatchPercent,
           }),
         });
+        if (!resp.ok) {
+          try {
+            const ct = resp.headers.get('content-type') || '';
+            const isJson = ct.includes('application/json');
+            const data = isJson ? await resp.json() : await resp.text();
+            setSubmissionError((data as any)?.error || 'Failed to create submission');
+          } catch {
+            setSubmissionError('Failed to create submission');
+          }
+          return false;
+        }
       } else if (entryType === "interview") {
-        await fetchWithAuth("/api/recruiter/submissions", {
+        const resp = await fetchWithAuth("/api/recruiter/submissions", {
           method: "POST",
           body: JSON.stringify({
             ...baseData,
@@ -192,6 +203,17 @@ export default function AddSubmissionModal({ client, selectedDate, onClose, onSu
             interview_level: interviewLevel,
           }),
         });
+        if (!resp.ok) {
+          try {
+            const ct = resp.headers.get('content-type') || '';
+            const isJson = ct.includes('application/json');
+            const data = isJson ? await resp.json() : await resp.text();
+            setSubmissionError((data as any)?.error || 'Failed to create interview entry');
+          } catch {
+            setSubmissionError('Failed to create interview entry');
+          }
+          return false;
+        }
       }
 
       return true;

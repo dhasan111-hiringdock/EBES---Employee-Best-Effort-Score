@@ -326,6 +326,15 @@ app.get("/api/rm/roles", rmOnly, async (c) => {
         t.team_code,
         u.name as account_manager_name,
         u.user_code as account_manager_code,
+        (SELECT COUNT(*) 
+         FROM candidate_role_associations cra 
+         WHERE cra.role_id = r.id AND cra.is_discarded = 0) as total_submissions,
+        (SELECT SUM(CASE WHEN cra.status = 'rm_evaluation' AND cra.is_discarded = 0 THEN 1 ELSE 0 END)
+         FROM candidate_role_associations cra
+         WHERE cra.role_id = r.id) as under_evaluation,
+        (SELECT SUM(CASE WHEN cra.status IN ('client_submitted','client_rejected') AND cra.is_discarded = 0 THEN 1 ELSE 0 END)
+         FROM candidate_role_associations cra
+         WHERE cra.role_id = r.id) as submitted_to_client,
         (SELECT COUNT(DISTINCT cra.candidate_id) 
          FROM candidate_role_associations cra 
          WHERE cra.role_id = r.id AND cra.is_discarded = 0) as in_play_submissions,
@@ -351,10 +360,15 @@ app.get("/api/rm/roles", rmOnly, async (c) => {
     }
 
     // Apply status filter
-    if (status === 'active') {
-      query += " AND r.status = 'active'";
-    } else if (status === 'non-active') {
-      query += " AND r.status != 'active'";
+    if (status) {
+      if (status === 'active') {
+        query += " AND r.status = 'active'";
+      } else if (status === 'non-active') {
+        query += " AND r.status != 'active'";
+      } else if (['lost','cancelled','deal','on_hold','no_answer'].includes(status)) {
+        query += " AND r.status = ?";
+        params.push(status);
+      }
     }
 
     // Apply client filter
@@ -2066,6 +2080,297 @@ app.get("/api/rm/performance-summary", rmOnly, async (c) => {
     console.error("Error fetching performance summary:", error);
     return c.json({ error: "Failed to fetch performance summary" }, 500);
   }
+});
+
+// Role submissions for RM
+app.get("/api/rm/role-submissions/:roleId", rmOnly, async (c) => {
+  const db = c.env.DB;
+  const rmUser = c.get("rmUser");
+  const roleId = c.req.param("roleId");
+
+  const role = await db.prepare("SELECT team_id FROM am_roles WHERE id = ?").bind(roleId).first();
+  if (!role) return c.json({ error: "Role not found" }, 404);
+
+  const access = await db
+    .prepare("SELECT 1 FROM team_assignments WHERE user_id = ? AND team_id = ?")
+    .bind((rmUser as any).id, (role as any).team_id)
+    .first();
+  if (!access) return c.json({ error: "Forbidden" }, 403);
+
+  const rows = await db.prepare(`
+    SELECT 
+      cra.id as association_id,
+      cra.candidate_id,
+      c.name as candidate_name,
+      c.email as candidate_email,
+      c.phone as candidate_phone,
+      cra.status as association_status,
+      cra.submission_date,
+      cra.is_discarded,
+      cra.discarded_at,
+      cra.discarded_reason,
+      u.name as recruiter_name,
+      u.user_code as recruiter_code,
+      rs.id as submission_id,
+      ROUND(rs.cv_match_percent / 20.0, 2) as score,
+      rs.rm_validation_status,
+      rs.rm_rate_bill,
+      rs.rm_rate_pay,
+      rs.rm_location,
+      rs.rm_work_type
+    FROM candidate_role_associations cra
+    LEFT JOIN candidates c ON cra.candidate_id = c.id
+    LEFT JOIN users u ON cra.recruiter_user_id = u.id
+    LEFT JOIN recruiter_submissions rs 
+      ON rs.role_id = cra.role_id 
+     AND rs.recruiter_user_id = cra.recruiter_user_id 
+     AND rs.entry_type = 'submission'
+     AND DATE(rs.submission_date) = DATE(cra.submission_date)
+    WHERE cra.role_id = ?
+    ORDER BY cra.submission_date DESC, cra.id DESC
+  `).bind(roleId).all();
+
+  const results = rows.results || [];
+  return c.json({
+    pending_evaluation: results.filter((r: any) => (r as any).is_discarded !== 1 && (r as any).association_status === 'rm_evaluation'),
+    under_consideration: results.filter((r: any) => (r as any).is_discarded !== 1 && (r as any).association_status !== 'rm_evaluation'),
+    rejected: results.filter((r: any) => (r as any).is_discarded === 1),
+  });
+});
+
+// RM discard candidate submission
+app.post("/api/rm/roles/:roleId/candidates/:candidateId/discard", rmOnly, async (c) => {
+  const db = c.env.DB;
+  const rmUser = c.get("rmUser");
+  const roleId = c.req.param("roleId");
+  const candidateId = c.req.param("candidateId");
+  const { reason } = await c.req.json();
+
+  const role = await db.prepare("SELECT team_id FROM am_roles WHERE id = ?").bind(roleId).first();
+  if (!role) return c.json({ error: "Role not found" }, 404);
+
+  const access = await db
+    .prepare("SELECT 1 FROM team_assignments WHERE user_id = ? AND team_id = ?")
+    .bind((rmUser as any).id, (role as any).team_id)
+    .first();
+  if (!access) return c.json({ error: "Forbidden" }, 403);
+
+  await db.prepare(`
+    UPDATE candidate_role_associations
+    SET is_discarded = 1,
+        discarded_reason = COALESCE(?, 'Discarded by RM'),
+        discarded_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE role_id = ? AND candidate_id = ? AND is_discarded = 0
+  `).bind(reason || null, roleId, candidateId).run();
+
+  return c.json({ success: true });
+});
+
+// RM review/update submission details
+app.put("/api/rm/submissions/:id/review", rmOnly, async (c) => {
+  const db = c.env.DB;
+  const rmUser = c.get("rmUser");
+  const id = c.req.param("id");
+  const body = await c.req.json();
+
+  const sub = await db.prepare(`
+    SELECT rs.*, ar.team_id 
+    FROM recruiter_submissions rs 
+    LEFT JOIN am_roles ar ON rs.role_id = ar.id
+    WHERE rs.id = ? AND rs.entry_type = 'submission'
+  `).bind(id).first();
+  if (!sub) return c.json({ error: "Submission not found" }, 404);
+
+  const access = await db
+    .prepare("SELECT 1 FROM team_assignments WHERE user_id = ? AND team_id = ?")
+    .bind((rmUser as any).id, (sub as any).team_id)
+    .first();
+  if (!access) return c.json({ error: "Forbidden" }, 403);
+
+  // Enforce allowed contract types
+  let workType = body.rm_work_type || null;
+  if (workType) {
+    const wt = String(workType).toLowerCase();
+    if (wt === 'sow' || wt === 'payroll') {
+      workType = wt === 'sow' ? 'SOW' : 'Payroll';
+    } else {
+      workType = null;
+    }
+  }
+
+  await db.prepare(`
+    UPDATE recruiter_submissions SET
+      rm_validation_status = COALESCE(?, rm_validation_status),
+      rm_rate_bill = COALESCE(?, rm_rate_bill),
+      rm_rate_pay = COALESCE(?, rm_rate_pay),
+      rm_location = COALESCE(?, rm_location),
+      rm_work_type = COALESCE(?, rm_work_type),
+      cv_match_percent = COALESCE(?, cv_match_percent),
+      rm_notes = COALESCE(?, rm_notes),
+      rm_reviewed_at = CURRENT_TIMESTAMP,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).bind(
+    body.rm_validation_status || null,
+    body.rm_rate_bill || null,
+    body.rm_rate_pay || null,
+    body.rm_location || null,
+    workType,
+    body.rm_score_0_5 != null ? Number(body.rm_score_0_5) * 20 : null,
+    body.rm_notes || null,
+    id
+  ).run();
+
+  return c.json({ success: true });
+});
+
+app.post("/api/rm/roles/:roleId/candidates/:candidateId/send-to-am", rmOnly, async (c) => {
+  const db = c.env.DB;
+  const rmUser = c.get("rmUser");
+  const roleId = c.req.param("roleId");
+  const candidateId = c.req.param("candidateId");
+
+  const role = await db.prepare("SELECT account_manager_id, team_id, title FROM am_roles WHERE id = ?").bind(roleId).first();
+  if (!role) return c.json({ error: "Role not found" }, 404);
+
+  const access = await db
+    .prepare("SELECT 1 FROM team_assignments WHERE user_id = ? AND team_id = ?")
+    .bind((rmUser as any).id, (role as any).team_id)
+    .first();
+  if (!access) return c.json({ error: "Forbidden" }, 403);
+
+  // Ensure RM has completed required fields on the linked recruiter submission
+  const submission = await db
+    .prepare(`
+      SELECT rm_rate_bill, rm_rate_pay, rm_work_type, cv_match_percent, rm_validation_status, rm_notes, rm_location
+      FROM recruiter_submissions
+      WHERE role_id = ?
+        AND entry_type = 'submission'
+        AND recruiter_user_id = (
+          SELECT recruiter_user_id
+          FROM candidate_role_associations
+          WHERE role_id = ? AND candidate_id = ?
+        )
+      ORDER BY submission_date DESC
+      LIMIT 1
+    `)
+    .bind(roleId, roleId, candidateId)
+    .first();
+
+  const s = submission as any;
+  const missing: string[] = [];
+  if (!s || s.rm_rate_bill == null) missing.push("rate bill");
+  if (!s || s.rm_rate_pay == null) missing.push("rate pay");
+  if (!s || !s.rm_work_type) missing.push("contract type");
+  if (!s || s.cv_match_percent == null) missing.push("validation score");
+  if (!s || !s.rm_validation_status) missing.push("validation status");
+  if (!s || !s.rm_notes) missing.push("notes");
+  if (!s || !s.rm_location) missing.push("location");
+  if (s && s.rm_work_type && s.rm_work_type !== "SOW" && s.rm_work_type !== "Payroll") {
+    missing.push("contract type must be SOW or Payroll");
+  }
+  if (missing.length > 0) {
+    return c.json({ error: `Missing required fields: ${missing.join(", ")}` }, 400);
+  }
+
+  await db.prepare(`
+    UPDATE candidate_role_associations
+    SET status = 'submitted',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE role_id = ? AND candidate_id = ? AND is_discarded = 0 AND status = 'rm_evaluation'
+  `).bind(roleId, candidateId).run();
+
+  if ((role as any).account_manager_id) {
+    await createNotification(db, {
+      userId: (role as any).account_manager_id,
+      type: 'system',
+      title: 'Candidate Ready',
+      message: `RM completed validation for ${(role as any).title}. Candidate sent to AM.`,
+      relatedEntityType: 'role',
+      relatedEntityId: Number(roleId)
+    });
+  }
+
+  return c.json({ success: true });
+});
+
+// RM submit candidate to client
+app.post("/api/rm/roles/:roleId/candidates/:candidateId/submit-to-client", rmOnly, async (c) => {
+  const db = c.env.DB;
+  const rmUser = c.get("rmUser");
+  const roleId = c.req.param("roleId");
+  const candidateId = c.req.param("candidateId");
+
+  const role = await db.prepare("SELECT team_id FROM am_roles WHERE id = ?").bind(roleId).first();
+  if (!role) return c.json({ error: "Role not found" }, 404);
+
+  const access = await db
+    .prepare("SELECT 1 FROM team_assignments WHERE user_id = ? AND team_id = ?")
+    .bind((rmUser as any).id, (role as any).team_id)
+    .first();
+  if (!access) return c.json({ error: "Forbidden" }, 403);
+
+  await db.prepare(`
+    UPDATE candidate_role_associations
+    SET status = 'client_submitted',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE role_id = ? AND candidate_id = ? AND is_discarded = 0
+  `).bind(roleId, candidateId).run();
+
+  return c.json({ success: true });
+});
+
+// RM mark client rejection
+app.post("/api/rm/roles/:roleId/candidates/:candidateId/client-reject", rmOnly, async (c) => {
+  const db = c.env.DB;
+  const rmUser = c.get("rmUser");
+  const roleId = c.req.param("roleId");
+  const candidateId = c.req.param("candidateId");
+
+  const role = await db.prepare("SELECT team_id FROM am_roles WHERE id = ?").bind(roleId).first();
+  if (!role) return c.json({ error: "Role not found" }, 404);
+
+  const access = await db
+    .prepare("SELECT 1 FROM team_assignments WHERE user_id = ? AND team_id = ?")
+    .bind((rmUser as any).id, (role as any).team_id)
+    .first();
+  if (!access) return c.json({ error: "Forbidden" }, 403);
+
+  await db.prepare(`
+    UPDATE candidate_role_associations
+    SET status = 'client_rejected',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE role_id = ? AND candidate_id = ? AND is_discarded = 0
+  `).bind(roleId, candidateId).run();
+
+  return c.json({ success: true });
+});
+
+// RM mark deal for candidate
+app.post("/api/rm/roles/:roleId/candidates/:candidateId/deal", rmOnly, async (c) => {
+  const db = c.env.DB;
+  const rmUser = c.get("rmUser");
+  const roleId = c.req.param("roleId");
+  const candidateId = c.req.param("candidateId");
+
+  const role = await db.prepare("SELECT team_id FROM am_roles WHERE id = ?").bind(roleId).first();
+  if (!role) return c.json({ error: "Role not found" }, 404);
+
+  const access = await db
+    .prepare("SELECT 1 FROM team_assignments WHERE user_id = ? AND team_id = ?")
+    .bind((rmUser as any).id, (role as any).team_id)
+    .first();
+  if (!access) return c.json({ error: "Forbidden" }, 403);
+
+  await db.prepare(`
+    UPDATE candidate_role_associations
+    SET status = 'deal',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE role_id = ? AND candidate_id = ?
+  `).bind(roleId, candidateId).run();
+
+  return c.json({ success: true });
 });
 
 export default app;

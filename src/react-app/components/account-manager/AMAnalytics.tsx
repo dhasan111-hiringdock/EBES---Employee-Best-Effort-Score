@@ -45,7 +45,8 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  ComposedChart
+  ComposedChart,
+  Brush
 } from "recharts";
 
 interface Client {
@@ -78,6 +79,18 @@ export default function AMAnalytics() {
   const [ebesScore, setEbesScore] = useState(0);
   const [performanceLabel, setPerformanceLabel] = useState("Average");
   const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [hiddenSeries, setHiddenSeries] = useState<Record<string, boolean>>({
+    deals: false,
+    interviews: false,
+    ebes: false,
+  });
+  const [statusActiveIndex, setStatusActiveIndex] = useState<number | null>(null);
+
+  const handleLegendClick = (o: any) => {
+    const key = o?.dataKey;
+    if (!key) return;
+    setHiddenSeries((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
   const [trendData, setTrendData] = useState<any[]>([]);
   
   // Filters
@@ -688,11 +701,17 @@ export default function AMAnalytics() {
               <Tooltip 
                 contentStyle={{ backgroundColor: '#fff', border: '2px solid #e5e7eb', borderRadius: '8px' }}
               />
-              <Legend />
-              <Bar yAxisId="left" dataKey="deals" fill={COLORS.success} name="Deals" radius={[8, 8, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="ebes" stroke={COLORS.primary} strokeWidth={3} name="EBES Score" dot={{ r: 5 }} />
+              <Legend onClick={handleLegendClick} />
+              <Bar yAxisId="left" dataKey="deals" fill={COLORS.success} name="Deals" radius={[8, 8, 0, 0]} hide={hiddenSeries.deals} />
+              <Line yAxisId="right" type="monotone" dataKey="ebes" stroke={COLORS.primary} strokeWidth={3} name="EBES Score" dot={{ r: 5 }} activeDot={{ r: 7 }} hide={hiddenSeries.ebes} />
+              <Brush dataKey="month" height={20} travellerWidth={10} />
             </ComposedChart>
           </ResponsiveContainer>
+          {statusActiveIndex != null && (
+            <div className="mt-3 text-sm text-gray-700">
+              Selected: <span className="font-semibold">{statusData[statusActiveIndex].name}</span> — {statusData[statusActiveIndex].value}
+            </div>
+          )}
         </div>
 
         {/* Status Distribution Pie Chart */}
@@ -712,9 +731,14 @@ export default function AMAnalytics() {
                 outerRadius={100}
                 fill="#8884d8"
                 dataKey="value"
+                isAnimationActive
               >
                 {statusData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={entry.color} 
+                    onClick={() => setStatusActiveIndex(index)} 
+                  />
                 ))}
               </Pie>
               <Tooltip />
@@ -807,9 +831,10 @@ export default function AMAnalytics() {
             <Tooltip 
               contentStyle={{ backgroundColor: '#fff', border: '2px solid #e5e7eb', borderRadius: '8px' }}
             />
-            <Legend />
-            <Bar dataKey="deals" fill={COLORS.success} name="Deals" radius={[8, 8, 0, 0]} />
-            <Bar dataKey="interviews" fill={COLORS.info} name="Interviews" radius={[8, 8, 0, 0]} />
+            <Legend onClick={handleLegendClick} />
+            <Bar dataKey="deals" fill={COLORS.success} name="Deals" radius={[8, 8, 0, 0]} hide={hiddenSeries.deals} />
+            <Bar dataKey="interviews" fill={COLORS.info} name="Interviews" radius={[8, 8, 0, 0]} hide={hiddenSeries.interviews} />
+            <Brush dataKey="name" height={20} travellerWidth={10} />
           </BarChart>
         </ResponsiveContainer>
       </div>

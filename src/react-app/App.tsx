@@ -4,6 +4,7 @@ import ProtectedRoute from "@/react-app/components/ProtectedRoute";
 
 // Eager load Login page (needed immediately)
 import Login from "@/react-app/pages/Login";
+import EBESLanding from "@/react-app/pages/EBESLanding";
 
 // Lazy load all dashboard pages (loaded only when needed)
 const AdminDashboard = lazy(() => import("@/react-app/pages/AdminDashboard"));
@@ -83,7 +84,7 @@ export default function App() {
             }
           />
           
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<EBESLanding />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Suspense>

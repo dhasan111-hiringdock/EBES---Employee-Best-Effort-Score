@@ -91,7 +91,7 @@ export default function AddInterviewModal({
             </div>
             <div>
               <p className="text-xl font-bold text-indigo-600">{role.interview_3_count}</p>
-              <p className="text-xs text-indigo-700">Final</p>
+              <p className="text-xs text-indigo-700">Decision Pending</p>
             </div>
           </div>
           <div className="mt-2 pt-2 border-t border-indigo-200">

@@ -6,6 +6,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     allowedHosts: true,
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:8787",
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     chunkSizeWarningLimit: 5000,
@@ -13,18 +19,17 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules/react')) return 'react-vendor';
-          if (id.includes('node_modules/react-router')) return 'router';
-          if (id.includes('node_modules/lucide-react')) return 'icons';
-          if (id.includes('node_modules/recharts')) return 'charts';
           return undefined;
         },
       },
     },
   },
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias: [
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+      // Keep the official JSX runtime untouched
+      { find: "react/jsx-runtime", replacement: "react/jsx-runtime" },
+    ],
   },
   optimizeDeps: {
     exclude: ["hono", "hono/cors"],

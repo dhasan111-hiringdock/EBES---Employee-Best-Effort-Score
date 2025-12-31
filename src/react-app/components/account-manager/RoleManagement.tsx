@@ -498,7 +498,7 @@ export default function RoleManagement({ clientId, teamId }: RoleManagementProps
           <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
             <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-indigo-700 px-6 py-4 flex items-center justify-between text-white">
               <div>
-                <h3 className="text-xl font-bold">Role Submissions</h3>
+                <h3 className="text-xl font-bold">Role Details</h3>
                 <p className="text-indigo-100 text-xs mt-1 font-mono">{submissionsRole.role_code}</p>
               </div>
               <button onClick={() => setSubmissionsRole(null)} className="p-2 rounded hover:bg-white/20">
@@ -506,12 +506,66 @@ export default function RoleManagement({ clientId, teamId }: RoleManagementProps
               </button>
             </div>
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-64px)]">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Briefcase className="w-5 h-5 text-indigo-600" />
-                  <span className="font-semibold text-gray-800">Submissions</span>
+              <div className="space-y-6">
+                <div>
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-gray-900 truncate">{submissionsRole.title}</h3>
+                      </div>
+                      <p className="text-xs text-gray-600 font-mono">{submissionsRole.role_code}</p>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full border text-xs font-medium ${
+                      submissionsRole.status === "deal" ? "bg-blue-100 text-blue-700 border-blue-200" :
+                      submissionsRole.status === "lost" ? "bg-red-100 text-red-700 border-red-200" :
+                      submissionsRole.status === "on_hold" ? "bg-yellow-100 text-yellow-700 border-yellow-200" :
+                      submissionsRole.status === "cancelled" ? "bg-gray-100 text-gray-700 border-gray-200" :
+                      submissionsRole.status === "no_answer" ? "bg-purple-100 text-purple-700 border-purple-200" :
+                      "bg-green-100 text-green-700 border-green-200"
+                    }`}>
+                      {submissionsRole.status === "deal" ? "Deal" :
+                       submissionsRole.status === "lost" ? "Lost" :
+                       submissionsRole.status === "on_hold" ? "On Hold" :
+                       submissionsRole.status === "cancelled" ? "Cancelled" :
+                       submissionsRole.status === "no_answer" ? "No Answer" :
+                       "Active"}
+                    </div>
+                  </div>
+                  {submissionsRole.description && (
+                    <p className="text-sm text-gray-600 mb-3">{submissionsRole.description}</p>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <p className="text-xs text-gray-700 mb-1 font-semibold">Client</p>
+                      <p className="text-sm font-medium text-gray-900">{submissionsRole.client_name}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <p className="text-xs text-gray-700 mb-1 font-semibold">Team</p>
+                      <p className="text-sm font-medium text-gray-900">{submissionsRole.team_name}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-100">
+                      <p className="text-xs text-indigo-700 mb-1 font-semibold">Total Submissions</p>
+                      <p className="text-2xl font-bold text-indigo-600">{submissionsRole.total_submissions ?? 0}</p>
+                    </div>
+                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                      <p className="text-xs text-blue-700 mb-1 font-semibold">Under Evaluation</p>
+                      <p className="text-2xl font-bold text-blue-600">{submissionsRole.under_client_evaluation ?? 0}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <p className="text-xs text-gray-700 mb-1 font-semibold">Submitted to Client</p>
+                      <p className="text-2xl font-bold text-gray-900">{submissionsRole.submitted_to_client ?? 0}</p>
+                    </div>
+                  </div>
                 </div>
-                {loadingSubmissions && <span className="text-sm text-gray-500">Loading…</span>}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-5 h-5 text-indigo-600" />
+                    <span className="font-semibold text-gray-800">Submitted Candidates</span>
+                  </div>
+                  {loadingSubmissions && <span className="text-sm text-gray-500">Loading…</span>}
+                </div>
               </div>
               {roleSubmissions.under_consideration.length === 0 && roleSubmissions.rejected.length === 0 ? (
                 <div className="text-center py-8 bg-gray-50 rounded-xl">

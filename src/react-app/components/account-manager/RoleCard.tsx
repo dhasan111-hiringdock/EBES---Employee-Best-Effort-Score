@@ -1,4 +1,4 @@
-import { Edit, Trash2, RefreshCw, Plus, Eye } from "lucide-react";
+import { Edit, Trash2, RefreshCw, Eye } from "lucide-react";
 
 interface Role {
   id: number;
@@ -35,7 +35,6 @@ export default function RoleCard({
   onEdit,
   onDelete,
   onChangeStatus,
-  onAddInterview,
   onViewSubmissions,
 }: RoleCardProps) {
   const statusColors: Record<string, string> = {
@@ -143,14 +142,6 @@ export default function RoleCard({
         >
           <RefreshCw className="w-3 h-3" />
           Status
-        </button>
-        <button
-          onClick={onAddInterview}
-          className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          title="Add interview entry"
-        >
-          <Plus className="w-3 h-3" />
-          Entry
         </button>
         <button
           onClick={onViewSubmissions}

@@ -22,7 +22,7 @@ import CreateRoleModal from './CreateRoleModal';
 import EditRoleModal from './EditRoleModal';
 import AssignRecruiterModal from './AssignRecruiterModal';
 import { Trash2, Save } from 'lucide-react';
-
+                            
 interface Role {
   id: number;
   role_code: string;
@@ -111,6 +111,11 @@ export default function RMRoles() {
   });
   const [reviewEdits, setReviewEdits] = useState<Record<number, { rm_validation_status?: string; rm_rate_bill?: string; rm_rate_pay?: string; rm_location?: string; rm_work_type?: string; rm_notes?: string }>>({});
   const submissionsRef = useRef<HTMLDivElement | null>(null);
+  const underCons = submissions.under_consideration || [];
+  const submittedToAM = underCons.filter((i: any) => (i as any).association_status === 'submitted');
+  const submittedToClient = underCons.filter((i: any) => (i as any).association_status === 'client_submitted');
+  const clientRejected = underCons.filter((i: any) => (i as any).association_status === 'client_rejected');
+  const inPlay = underCons.filter((i: any) => !['submitted','client_submitted','client_rejected','deal'].includes((i as any).association_status));
 
   useEffect(() => {
     fetchInitialData();
@@ -1025,14 +1030,88 @@ export default function RMRoles() {
                           </div>
                         </div>
                       )}
-                      {submissions.under_consideration.length > 0 && (
+                      {submittedToClient.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <CheckCircle className="w-4 h-4 text-blue-600" />
+                            <span className="text-sm font-semibold text-slate-700">Submitted to Client</span>
+                          </div>
+                          <div className="space-y-3">
+                            {submittedToClient.map(item => (
+                              <div key={item.association_id} className="border border-slate-200 rounded-xl p-4">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-slate-800">{item.candidate_name}</span>
+                                      <span className="text-xs text-slate-500 font-mono">{item.candidate_id}</span>
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-blue-100 text-blue-800 border border-blue-200">Submitted to Client</span>
+                                    </div>
+                                    <div className="text-xs text-slate-600 mt-1">{item.candidate_email || 'No email'} · {item.candidate_phone || 'No phone'}</div>
+                                    <div className="text-xs text-slate-500 mt-1">Submitted on {new Date(item.submission_date).toLocaleDateString()}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {clientRejected.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <XCircle className="w-4 h-4 text-red-600" />
+                            <span className="text-sm font-semibold text-slate-700">Client Rejected</span>
+                          </div>
+                          <div className="space-y-3">
+                            {clientRejected.map(item => (
+                              <div key={item.association_id} className="border border-slate-200 rounded-xl p-4">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-slate-800">{item.candidate_name}</span>
+                                      <span className="text-xs text-slate-500 font-mono">{item.candidate_id}</span>
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-red-100 text-red-800 border border-red-200">Client Rejected</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {inPlay.length > 0 && (
                         <div>
                           <div className="flex items-center gap-2 mb-3">
                             <CheckCircle className="w-4 h-4 text-emerald-600" />
-                            <span className="text-sm font-semibold text-slate-700">Under Consideration</span>
+                            <span className="text-sm font-semibold text-slate-700">In Play</span>
                           </div>
                           <div className="space-y-3">
-                            {submissions.under_consideration.map(item => (
+                            {inPlay.map(item => (
+                              <div key={item.association_id} className="border border-slate-200 rounded-xl p-4">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-slate-800">{item.candidate_name}</span>
+                                      <span className="text-xs text-slate-500 font-mono">{item.candidate_id}</span>
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">In Play</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      
+                        
+                            {submittedToAM.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                  <CheckCircle className="w-4 h-4 text-indigo-600" />
+                                  <span className="text-sm font-semibold text-slate-700">Submitted to AM</span>
+                                </div>
+                                <div className="space-y-3">
+                                  {submittedToAM.map(item => (
                               <div key={item.association_id} className="border border-slate-200 rounded-xl p-4">
                                 <div className="flex items-start justify-between gap-4">
                                   <div className="flex-1 min-w-0">

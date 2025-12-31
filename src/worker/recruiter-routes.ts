@@ -563,33 +563,46 @@ app.post("/api/recruiter/submissions", recruiterOnly, async (c) => {
       }
     }
     
+    const tableInfo = await db.prepare("PRAGMA table_info(recruiter_submissions)").all();
+    const cols = (tableInfo.results || []).map((r: any) => (r as any).name);
+    const valueMap: Record<string, any> = {
+      recruiter_user_id: (recruiterUser as any).id,
+      client_id: clientId || null,
+      team_id: teamId || null,
+      role_id: roleId || null,
+      account_manager_id: accountManagerId,
+      recruitment_manager_id: recruitmentManagerId,
+      submission_type: submissionTypeValue,
+      submission_date: data.submission_date,
+      candidate_name: data.candidate_name || null,
+      notes: data.notes || "",
+      entry_type: entryType,
+      interview_level: data.interview_level || null,
+      dropout_role_id: data.dropout_role_id || null,
+      dropout_reason: data.dropout_reason || null,
+      cv_match_percent: entryType === 'submission' ? (data.cv_match_percent as number) : null
+    };
+    const insertCols = [
+      'recruiter_user_id',
+      'client_id',
+      'team_id',
+      'role_id',
+      'account_manager_id',
+      'recruitment_manager_id',
+      'submission_type',
+      'submission_date',
+      'candidate_name',
+      'notes',
+      'entry_type',
+      'interview_level',
+      'dropout_role_id',
+      'dropout_reason',
+      'cv_match_percent'
+    ].filter((c) => cols.includes(c));
+    const placeholders = insertCols.map(() => '?').join(', ');
     await db
-      .prepare(`
-        INSERT INTO recruiter_submissions (
-          recruiter_user_id, client_id, team_id, role_id, 
-          account_manager_id, recruitment_manager_id, 
-          submission_type, submission_date, candidate_name, notes, entry_type,
-          interview_level, dropout_role_id, dropout_reason, cv_match_percent
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-      .bind(
-        (recruiterUser as any).id,
-        clientId || null,
-        teamId || null,
-        roleId || null,
-        accountManagerId,
-        recruitmentManagerId,
-        submissionTypeValue,
-        data.submission_date,
-        data.candidate_name || null,
-        data.notes || "",
-        entryType,
-        data.interview_level || null,
-        data.dropout_role_id || null,
-        data.dropout_reason || null,
-        entryType === 'submission' ? (data.cv_match_percent as number) : null
-      )
+      .prepare(`INSERT INTO recruiter_submissions (${insertCols.join(', ')}) VALUES (${placeholders})`)
+      .bind(...insertCols.map((c) => valueMap[c]))
       .run();
 
     return c.json({ success: true });

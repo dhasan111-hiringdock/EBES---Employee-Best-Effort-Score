@@ -42,6 +42,7 @@ interface Role {
   total_submissions?: number;
   under_evaluation?: number;
   submitted_to_client?: number;
+  total_interviews?: number;
 }
 
 interface Client {
@@ -91,7 +92,7 @@ export default function RMRoles() {
   const [clients, setClients] = useState<Client[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('active');
+  const [activeTab, setActiveTab] = useState<"active" | "non-active">("active");
   const [clientFilter, setClientFilter] = useState<string>('');
   const [teamFilter, setTeamFilter] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -113,7 +114,7 @@ export default function RMRoles() {
 
   useEffect(() => {
     fetchRoles();
-  }, [statusFilter, clientFilter, teamFilter]);
+  }, [activeTab, clientFilter, teamFilter]);
 
   useEffect(() => {
     if (selectedRole) {
@@ -143,8 +144,7 @@ export default function RMRoles() {
       setLoading(true);
       const params = new URLSearchParams();
       
-      if (statusFilter === 'active') params.append('status', 'active');
-      else if (statusFilter === 'non-active') params.append('status', 'non-active');
+      params.append('status', activeTab);
       if (clientFilter) params.append('client_id', clientFilter);
       if (teamFilter) params.append('team_id', teamFilter);
 
@@ -223,13 +223,13 @@ export default function RMRoles() {
   };
 
   const clearFilters = () => {
-    setStatusFilter('');
+    setActiveTab("active");
     setClientFilter('');
     setTeamFilter('');
     setSearchTerm('');
   };
 
-  const hasActiveFilters = statusFilter || clientFilter || teamFilter || searchTerm;
+  const hasActiveFilters = clientFilter || teamFilter || searchTerm;
 
   const handleEdit = (role: Role, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -311,6 +311,34 @@ export default function RMRoles() {
             <Plus className="w-5 h-5" />
             Create Role
           </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="bg-white rounded-2xl shadow-lg border border-slate-200">
+        <div className="border-b border-slate-200">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab("active")}
+              className={`flex-1 px-6 py-4 font-medium transition-colors ${
+                activeTab === "active"
+                  ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              }`}
+            >
+              Active Roles
+            </button>
+            <button
+              onClick={() => setActiveTab("non-active")}
+              className={`flex-1 px-6 py-4 font-medium transition-colors ${
+                activeTab === "non-active"
+                  ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              }`}
+            >
+              Non-Active Roles
+            </button>
+          </div>
         </div>
       </div>
 
@@ -410,24 +438,6 @@ export default function RMRoles() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all appearance-none bg-white"
-            >
-              <option value="">All Statuses</option>
-              <option value="active">Active Only</option>
-              <option value="deal">Deal</option>
-              <option value="lost">Lost</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="on_hold">On Hold</option>
-              <option value="no_answer">No Answer</option>
-              <option value="non-active">Non-Active</option>
-            </select>
-          </div>
-
-          <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Client</label>
             <select
               value={clientFilter}
@@ -488,6 +498,78 @@ export default function RMRoles() {
               </button>
             )}
           </div>
+        </div>
+      ) : activeTab === "active" ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {filteredRoles.map((role) => {
+            const statusConfig = getStatusConfig(role.status);
+            return (
+              <div key={role.id} className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-slate-900 truncate">{role.title}</h3>
+                    </div>
+                    <p className="text-xs text-slate-600 font-mono">{role.role_code}</p>
+                  </div>
+                  <div className={`px-3 py-1 rounded-full border text-xs font-medium ${statusConfig.bg} ${statusConfig.color}`}>
+                    {statusConfig.label}
+                  </div>
+                </div>
+
+                {role.description && (
+                  <p className="text-sm text-slate-600 mb-3 line-clamp-2">{role.description}</p>
+                )}
+
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-100">
+                    <p className="text-xs text-indigo-700 mb-1 font-semibold">Total Submissions</p>
+                    <p className="text-2xl font-bold text-indigo-600">{role.total_submissions ?? 0}</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                    <p className="text-xs text-blue-700 mb-1 font-semibold">Under Evaluation</p>
+                    <p className="text-2xl font-bold text-blue-600">{role.under_evaluation ?? 0}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                    <p className="text-xs text-slate-700 mb-1 font-semibold">Submitted to Client</p>
+                    <p className="text-2xl font-bold text-slate-900">{role.submitted_to_client ?? 0}</p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 rounded-lg p-3 mb-3">
+                  <p className="text-xs text-slate-600 mb-2 font-medium">Interview Progress</p>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="col-span-3">
+                      <p className="text-lg font-bold text-indigo-600">{role.total_interviews ?? 0}</p>
+                      <p className="text-xs text-slate-500">Total Interviews</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedRole(role);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+                    title="View details"
+                  >
+                    <Eye className="w-3 h-3" />
+                    Details
+                  </button>
+                  <button
+                    onClick={(e) => handleEdit(role, e)}
+                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+                    title="Edit role"
+                  >
+                    <Edit className="w-3 h-3" />
+                    Edit
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">

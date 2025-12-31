@@ -3,19 +3,19 @@
   "name": "ebes-app",
   "main": "./src/worker/index.ts",
   "compatibility_date": "2025-06-17",
-  "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true
   },
   "upload_source_maps": true,
   "assets": {
+    "directory": "dist",
     "not_found_handling": "single-page-application"
   },
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "019b0362-cbb9-76e7-b665-a4fcc58bd445",
-      "database_id": "019b0362-cbb9-76e7-b665-a4fcc58bd445"
+      "database_name": "ebes-db",
+      "database_id": "db348f18-784f-4ccc-928a-25a27056a14e"
     }
   ]
 }

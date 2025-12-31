@@ -33,4 +33,6 @@ app.route("/", superAdminRoutes);
 app.route("/", notificationRoutes);
 app.route("/", employeeRoutes);
 
-export default app;
+export default {
+  fetch: app.fetch,
+};

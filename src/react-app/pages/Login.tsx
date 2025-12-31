@@ -8,8 +8,11 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const API_BASE: string = (import.meta as any)?.env?.VITE_API_BASE_URL ?? '';
-  const IS_PROD: boolean = Boolean((import.meta as any)?.env?.PROD);
+  const DEFAULT_API_BASE =
+    typeof window !== 'undefined' && window.location.hostname.endsWith('.vercel.app')
+      ? 'https://ebes-app.dhasan111.workers.dev'
+      : '';
+  const API_BASE: string = (import.meta as any)?.env?.VITE_API_BASE_URL ?? DEFAULT_API_BASE;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,10 +23,6 @@ export default function Login() {
     localStorage.clear();
 
     try {
-      if (IS_PROD && !API_BASE) {
-        setError('Service not available. Please try again later.');
-        return;
-      }
       const loginUrl = API_BASE ? `${API_BASE}/api/auth/login` : '/api/auth/login';
       const response = await fetch(loginUrl, {
         method: 'POST',

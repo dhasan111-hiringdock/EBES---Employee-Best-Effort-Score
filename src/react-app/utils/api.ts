@@ -1,5 +1,8 @@
-// Optimized API utility with request deduplication
-const API_BASE: string = (import.meta as any)?.env?.VITE_API_BASE_URL ?? '';
+const DEFAULT_API_BASE =
+  typeof window !== 'undefined' && window.location.hostname.endsWith('.vercel.app')
+    ? 'https://ebes-app.dhasan111.workers.dev'
+    : '';
+const API_BASE: string = (import.meta as any)?.env?.VITE_API_BASE_URL ?? DEFAULT_API_BASE;
 const requestCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_DURATION = 5000; // 5 seconds cache for GET requests
 

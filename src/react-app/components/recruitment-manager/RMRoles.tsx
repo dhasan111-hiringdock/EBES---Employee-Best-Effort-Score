@@ -85,6 +85,8 @@ interface RoleSubmission {
   rm_rate_pay?: number;
   rm_location?: string;
   rm_work_type?: string;
+  rm_notes?: string;
+  rm_reviewed_at?: string;
 }
 
 export default function RMRoles() {
@@ -102,7 +104,8 @@ export default function RMRoles() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
-  const [submissions, setSubmissions] = useState<{ under_consideration: RoleSubmission[]; rejected: RoleSubmission[] }>({
+  const [submissions, setSubmissions] = useState<{ pending_evaluation: RoleSubmission[]; under_consideration: RoleSubmission[]; rejected: RoleSubmission[] }>({
+    pending_evaluation: [],
     under_consideration: [],
     rejected: [],
   });
@@ -120,7 +123,7 @@ export default function RMRoles() {
     if (selectedRole) {
       loadRoleSubmissions(selectedRole.id);
     } else {
-      setSubmissions({ under_consideration: [], rejected: [] });
+      setSubmissions({ pending_evaluation: [], under_consideration: [], rejected: [] });
       setReviewEdits({});
     }
   }, [selectedRole]);
@@ -285,6 +288,23 @@ export default function RMRoles() {
     });
     if (res.ok && selectedRole) {
       await loadRoleSubmissions(selectedRole.id);
+    }
+  };
+ 
+  const sendToAM = async (roleId: number, candidateId: number) => {
+    const res = await fetchWithAuth(`/api/rm/roles/${roleId}/candidates/${candidateId}/send-to-am`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    if (res.ok && selectedRole) {
+      await loadRoleSubmissions(selectedRole.id);
+    } else {
+      try {
+        const err = await res.json();
+        alert(err.error || 'Failed to send to AM');
+      } catch {
+        alert('Failed to send to AM');
+      }
     }
   };
 
@@ -859,13 +879,137 @@ export default function RMRoles() {
                   )}
                 </div>
                 <div className="p-6">
-                  {submissions.under_consideration.length === 0 && submissions.rejected.length === 0 ? (
+                  {submissions.pending_evaluation.length === 0 && submissions.under_consideration.length === 0 && submissions.rejected.length === 0 ? (
                     <div className="text-center py-8 bg-slate-50 rounded-xl">
                       <Briefcase className="w-10 h-10 text-slate-400 mx-auto mb-2" />
                       <p className="text-slate-600">No submissions yet</p>
                     </div>
                   ) : (
                     <div className="space-y-8">
+                      {submissions.pending_evaluation.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <Clock className="w-4 h-4 text-indigo-600" />
+                            <span className="text-sm font-semibold text-slate-700">Pending Evaluation</span>
+                          </div>
+                          <div className="space-y-3">
+                            {submissions.pending_evaluation.map(item => (
+                              <div key={item.association_id} className="border border-slate-200 rounded-xl p-4">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-slate-800">{item.candidate_name}</span>
+                                      <span className="text-xs text-slate-500 font-mono">{item.candidate_id}</span>
+                                    </div>
+                                    <div className="text-xs text-slate-600 mt-1">
+                                      {item.candidate_email || 'No email'} · {item.candidate_phone || 'No phone'}
+                                    </div>
+                                    <div className="text-xs text-slate-500 mt-1">
+                                      Submitted on {new Date(item.submission_date).toLocaleDateString()}
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+                                      <input
+                                        type="text"
+                                        placeholder="Validation status"
+                                        defaultValue={item.rm_validation_status || ''}
+                                        onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_validation_status', e.target.value)}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        disabled={!item.submission_id}
+                                      />
+                                      <input
+                                        type="number"
+                                        step="0.1"
+                                        min={0}
+                                        max={5}
+                                        placeholder="Validation score (0-5)"
+                                        defaultValue={item.cv_match_percent != null ? String(Number(item.cv_match_percent) / 20) : (item as any).score != null ? String((item as any).score) : ''}
+                                        onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_score_0_5', e.target.value)}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        disabled={!item.submission_id}
+                                      />
+                                      <input
+                                        type="number"
+                                        placeholder="Rate bill"
+                                        defaultValue={item.rm_rate_bill !== undefined ? String(item.rm_rate_bill) : ''}
+                                        onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_rate_bill', e.target.value)}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        disabled={!item.submission_id}
+                                      />
+                                      <input
+                                        type="number"
+                                        placeholder="Rate pay"
+                                        defaultValue={item.rm_rate_pay !== undefined ? String(item.rm_rate_pay) : ''}
+                                        onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_rate_pay', e.target.value)}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        disabled={!item.submission_id}
+                                      />
+                                      <input
+                                        type="text"
+                                        placeholder="Location"
+                                        defaultValue={item.rm_location || ''}
+                                        onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_location', e.target.value)}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        disabled={!item.submission_id}
+                                      />
+                                      <select
+                                        defaultValue={item.rm_work_type || ''}
+                                        onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_work_type', e.target.value)}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        disabled={!item.submission_id}
+                                      >
+                                        <option value="">Select contract type</option>
+                                        <option value="SOW">SOW</option>
+                                        <option value="Payroll">Payroll</option>
+                                      </select>
+                                      <input
+                                        type="text"
+                                        placeholder="Notes"
+                                        defaultValue={item.rm_notes || ''}
+                                        onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_notes', e.target.value)}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm md:col-span-2"
+                                        disabled={!item.submission_id}
+                                      />
+                                    </div>
+                                    {item.rm_reviewed_at && (
+                                      <div className="mt-2 text-xs text-slate-500">
+                                        Validation date: {new Date(item.rm_reviewed_at).toLocaleString()}
+                                      </div>
+                                    )}
+                                    <div className="mt-2 text-xs text-slate-500">
+                                      Recruiter: {item.recruiter_name} ({item.recruiter_code})
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col items-end gap-2">
+                                    <button
+                                      onClick={() => discardCandidate(selectedRole!.id, item.candidate_id)}
+                                      className="px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                      Discard
+                                    </button>
+                                    <button
+                                      onClick={() => saveReview(item.submission_id)}
+                                      disabled={!item.submission_id}
+                                      className="px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                      <Save className="w-4 h-4" />
+                                      Save Review
+                                    </button>
+                                    <button
+                                      onClick={() => sendToAM(selectedRole!.id, item.candidate_id)}
+                                      disabled={!item.submission_id}
+                                      className="px-3 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                      <User className="w-4 h-4" />
+                                      Send to AM
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {submissions.under_consideration.length > 0 && (
                         <div>
                           <div className="flex items-center gap-2 mb-3">
@@ -897,6 +1041,17 @@ export default function RMRoles() {
                                         disabled={!item.submission_id}
                                       />
                                       <input
+                                        type="number"
+                                        step="0.1"
+                                        min={0}
+                                        max={5}
+                                        placeholder="Validation score (0-5)"
+                                        defaultValue={(item as any).score != null ? String((item as any).score) : ''}
+                                        onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_score_0_5', e.target.value)}
+                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                        disabled={!item.submission_id}
+                                      />
+                                      <input
                                         type="text"
                                         placeholder="Rate bill"
                                         defaultValue={item.rm_rate_bill !== undefined ? String(item.rm_rate_bill) : ''}
@@ -920,14 +1075,16 @@ export default function RMRoles() {
                                         className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
                                         disabled={!item.submission_id}
                                       />
-                                      <input
-                                        type="text"
-                                        placeholder="Work type"
+                                      <select
                                         defaultValue={item.rm_work_type || ''}
                                         onChange={(e) => updateReviewEdit(item.submission_id || 0, 'rm_work_type', e.target.value)}
                                         className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
                                         disabled={!item.submission_id}
-                                      />
+                                      >
+                                        <option value="">Select contract type</option>
+                                        <option value="SOW">SOW</option>
+                                        <option value="Payroll">Payroll</option>
+                                      </select>
                                       <input
                                         type="text"
                                         placeholder="Notes"
@@ -936,6 +1093,11 @@ export default function RMRoles() {
                                         disabled={!item.submission_id}
                                       />
                                     </div>
+                                    {item.rm_reviewed_at && (
+                                      <div className="mt-2 text-xs text-slate-500">
+                                        Validation date: {new Date(item.rm_reviewed_at).toLocaleString()}
+                                      </div>
+                                    )}
                                   </div>
                                   <div className="flex flex-col items-end gap-2">
                                     <button

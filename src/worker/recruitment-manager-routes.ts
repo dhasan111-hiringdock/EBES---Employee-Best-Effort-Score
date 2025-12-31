@@ -2117,7 +2117,9 @@ app.get("/api/rm/role-submissions/:roleId", rmOnly, async (c) => {
       rs.rm_rate_bill,
       rs.rm_rate_pay,
       rs.rm_location,
-      rs.rm_work_type
+      rs.rm_work_type,
+      rs.rm_notes,
+      rs.rm_reviewed_at
     FROM candidate_role_associations cra
     LEFT JOIN candidates c ON cra.candidate_id = c.id
     LEFT JOIN users u ON cra.recruiter_user_id = u.id

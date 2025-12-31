@@ -57,11 +57,16 @@ export default function RoleCard({
   };
 
   return (
-    <div className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+    <div className={`rounded-xl p-4 hover:shadow-md transition-shadow border ${((role.under_client_evaluation ?? 0) > 0) ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200'}`}>
       <div className="flex justify-between items-start mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h3 className="font-semibold text-gray-900 truncate">{role.title}</h3>
+            {(role.under_client_evaluation ?? 0) > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                Pending action
+              </span>
+            )}
             {role.has_pending_dropout && (
               <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-semibold rounded border border-orange-200">
                 Pending
@@ -153,7 +158,7 @@ export default function RoleCard({
           title="View submissions"
         >
           <Eye className="w-3 h-3" />
-          Submissions
+          Details
         </button>
         <button
           onClick={onDelete}

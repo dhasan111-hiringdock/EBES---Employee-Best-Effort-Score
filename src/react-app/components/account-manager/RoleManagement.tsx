@@ -445,6 +445,22 @@ export default function RoleManagement({ clientId, teamId }: RoleManagementProps
                                 <div className="flex items-center gap-2">
                                   <span className="font-semibold text-gray-900">{item.candidate_name}</span>
                                   <span className="text-xs text-gray-500 font-mono">{item.candidate_code || item.candidate_id}</span>
+                                  {(() => {
+                                    const s = (item as any).association_status;
+                                    if (s === 'submitted') {
+                                      return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">Submitted to AM</span>;
+                                    }
+                                    if (s === 'client_submitted') {
+                                      return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-blue-100 text-blue-800 border border-blue-200">Submitted to Client</span>;
+                                    }
+                                    if (s === 'client_rejected') {
+                                      return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-red-100 text-red-800 border border-red-200">Client Rejected</span>;
+                                    }
+                                    if (s === 'rm_evaluation') {
+                                      return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">Pending RM evaluation</span>;
+                                    }
+                                    return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">In Play</span>;
+                                  })()}
                                 </div>
                                 <div className="text-xs text-gray-600 mt-1">
                                   {item.candidate_email || 'No email'} · {item.candidate_phone || 'No phone'}

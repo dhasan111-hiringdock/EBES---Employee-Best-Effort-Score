@@ -350,6 +350,7 @@ app.post("/api/recruiter/submissions", recruiterOnly, async (c) => {
     let teamId = data.team_id;
     let accountManagerId = null;
     let recruitmentManagerId = null;
+    let roleTitle: string | null = null;
 
     // Handle dropout case
     if (entryType === "dropout" && data.dropout_role_id) {
@@ -427,6 +428,7 @@ app.post("/api/recruiter/submissions", recruiterOnly, async (c) => {
       accountManagerId = (role as any).account_manager_id;
       clientId = clientId || (role as any).client_id;
       teamId = teamId || (role as any).team_id;
+      roleTitle = (role as any).title || null;
 
       // If it's a deal entry, update the role status and create notification for AM
       if (entryType === "deal") {
@@ -546,6 +548,17 @@ app.post("/api/recruiter/submissions", recruiterOnly, async (c) => {
           `)
           .bind(candidateId, roleId, (recruiterUser as any).id, clientId, teamId, data.submission_date)
           .run();
+        
+        if (recruitmentManagerId) {
+          await createNotification(db, {
+            userId: recruitmentManagerId,
+            type: 'system',
+            title: 'Submission Received',
+            message: `New candidate submission for role ${roleTitle || String(roleId)} requires RM evaluation.`,
+            relatedEntityType: 'role',
+            relatedEntityId: Number(roleId)
+          });
+        }
       }
     }
     

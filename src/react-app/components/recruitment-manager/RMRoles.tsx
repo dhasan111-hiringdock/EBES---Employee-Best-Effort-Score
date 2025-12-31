@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Search, 
   Filter, 
@@ -110,6 +110,7 @@ export default function RMRoles() {
     rejected: [],
   });
   const [reviewEdits, setReviewEdits] = useState<Record<number, { rm_validation_status?: string; rm_rate_bill?: string; rm_rate_pay?: string; rm_location?: string; rm_work_type?: string; rm_notes?: string }>>({});
+  const submissionsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     fetchInitialData();
@@ -255,6 +256,9 @@ export default function RMRoles() {
       if (res.ok) {
         const data = await res.json();
         setSubmissions(data);
+        setTimeout(() => {
+          submissionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
       }
     } catch (e) {
     } finally {
@@ -524,7 +528,7 @@ export default function RMRoles() {
           {filteredRoles.map((role) => {
             const statusConfig = getStatusConfig(role.status);
             return (
-              <div key={role.id} className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+              <div key={role.id} className={`rounded-xl p-4 hover:shadow-md transition-shadow border ${((role.under_evaluation ?? 0) > 0) ? 'border-yellow-300 bg-yellow-50' : 'border-slate-200'}`}>
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -536,6 +540,14 @@ export default function RMRoles() {
                     {statusConfig.label}
                   </div>
                 </div>
+                {(role.under_evaluation ?? 0) > 0 && (
+                  <div className="mb-2">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                      <Clock className="w-3 h-3" />
+                      Pending action
+                    </span>
+                  </div>
+                )}
 
                 {role.description && (
                   <p className="text-sm text-slate-600 mb-3 line-clamp-2">{role.description}</p>
@@ -867,7 +879,7 @@ export default function RMRoles() {
                 Edit Role
               </button>
             </div>
-            <div className="px-8 pb-8">
+            <div className="px-8 pb-8" ref={submissionsRef}>
               <div className="mt-6 bg-white border border-slate-200 rounded-2xl">
                 <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -900,6 +912,9 @@ export default function RMRoles() {
                                     <div className="flex items-center gap-2">
                                       <span className="font-semibold text-slate-800">{item.candidate_name}</span>
                                       <span className="text-xs text-slate-500 font-mono">{item.candidate_id}</span>
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                                        Pending evaluation
+                                      </span>
                                     </div>
                                     <div className="text-xs text-slate-600 mt-1">
                                       {item.candidate_email || 'No email'} · {item.candidate_phone || 'No phone'}
@@ -1024,6 +1039,19 @@ export default function RMRoles() {
                                     <div className="flex items-center gap-2">
                                       <span className="font-semibold text-slate-800">{item.candidate_name}</span>
                                       <span className="text-xs text-slate-500 font-mono">{item.candidate_id}</span>
+                                      {(() => {
+                                        const s = (item as any).association_status;
+                                        if (s === 'submitted') {
+                                          return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">Submitted to AM</span>;
+                                        }
+                                        if (s === 'client_submitted') {
+                                          return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-blue-100 text-blue-800 border border-blue-200">Submitted to Client</span>;
+                                        }
+                                        if (s === 'client_rejected') {
+                                          return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-red-100 text-red-800 border border-red-200">Client Rejected</span>;
+                                        }
+                                        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">In Play</span>;
+                                      })()}
                                     </div>
                                     <div className="text-xs text-slate-600 mt-1">
                                       {item.candidate_email || 'No email'} · {item.candidate_phone || 'No phone'}

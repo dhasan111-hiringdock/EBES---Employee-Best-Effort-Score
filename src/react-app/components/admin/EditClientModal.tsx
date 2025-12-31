@@ -30,6 +30,9 @@ export default function EditClientModal({
     try {
       const response = await fetchWithAuth(`/api/admin/clients/${client.id}`, {
         method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(formData),
       });
 
@@ -37,8 +40,12 @@ export default function EditClientModal({
         onClientUpdated();
         onClose();
       } else {
-        const data = await response.json();
-        setError(data.error || "Failed to update client");
+        const data = await response.json().catch(() => null);
+        if (response.status === 401 || response.status === 403) {
+          setError("Unauthorized. Admin access required or session expired.");
+        } else {
+          setError((data as any)?.error || "Failed to update client");
+        }
       }
     } catch (err) {
       setError("An error occurred while updating the client");

@@ -115,57 +115,47 @@ export default function AMAnalytics() {
   };
 
   const fetchTrendData = async () => {
-    // Generate last 6 months trend data
-    const months = [];
     const now = new Date();
-    
-    for (let i = 5; i >= 0; i--) {
+    const monthSpecs = [...Array(6)].map((_, idx) => {
+      const i = 5 - idx;
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
-      try {
-        const startDate = `${monthStr}-01`;
-        const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-        const endDate = `${monthStr}-${lastDay}`;
-        
-        const params = new URLSearchParams();
-        params.append("start_date", startDate);
-        params.append("end_date", endDate);
-        
-        const ebesResponse = await fetchWithAuth(`/api/am/ebes-score?${params.toString()}`);
-        const analyticsResponse = await fetchWithAuth(`/api/am/analytics?${params.toString()}`);
-        
-        let ebes = 0;
-        let roles = 0;
-        let deals = 0;
-        let interviews = 0;
-        
-        if (ebesResponse.ok) {
-          const ebesData = await ebesResponse.json();
-          ebes = ebesData.score;
-        }
-        
-        if (analyticsResponse.ok) {
-          const data = await analyticsResponse.json();
-          roles = data.clients.reduce((sum: number, c: any) => sum + c.total_roles, 0);
-          deals = data.clients.reduce((sum: number, c: any) => sum + c.deal_roles, 0);
-          interviews = data.clients.reduce((sum: number, c: any) => sum + c.total_interviews, 0);
-        }
-        
-        months.push({
-          month: date.toLocaleDateString('en-US', { month: 'short' }),
-          ebes,
-          roles,
-          deals,
-          interviews,
-          conversion: roles > 0 ? Math.round((deals / roles) * 100) : 0
-        });
-      } catch (error) {
-        console.error("Failed to fetch trend for month:", monthStr);
-      }
+      const startDate = `${monthStr}-01`;
+      const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+      const endDate = `${monthStr}-${lastDay}`;
+      const label = date.toLocaleDateString('en-US', { month: 'short' });
+      const params = new URLSearchParams();
+      params.append("start_date", startDate);
+      params.append("end_date", endDate);
+      return { label, query: params.toString() };
+    });
+
+    try {
+      const results = await Promise.all(
+        monthSpecs.map(async (m) => {
+          const [ebesResponse, analyticsResponse] = await Promise.all([
+            fetchWithAuth(`/api/am/ebes-score?${m.query}`),
+            fetchWithAuth(`/api/am/analytics?${m.query}`),
+          ]);
+          let ebes = 0, roles = 0, deals = 0, interviews = 0;
+          if (ebesResponse.ok) {
+            const ebesData = await ebesResponse.json();
+            ebes = ebesData.score || 0;
+          }
+          if (analyticsResponse.ok) {
+            const data = await analyticsResponse.json();
+            roles = data.clients.reduce((sum: number, c: any) => sum + c.total_roles, 0);
+            deals = data.clients.reduce((sum: number, c: any) => sum + c.deal_roles, 0);
+            interviews = data.clients.reduce((sum: number, c: any) => sum + c.total_interviews, 0);
+          }
+          const conversion = roles > 0 ? Math.round((deals / roles) * 100) : 0;
+          return { month: m.label, ebes, roles, deals, interviews, conversion };
+        })
+      );
+      setTrendData(results);
+    } catch {
+      setTrendData([]);
     }
-    
-    setTrendData(months);
   };
 
   const handleReportDownload = async (filters: ReportFilters, format: 'csv' | 'excel' | 'pdf') => {

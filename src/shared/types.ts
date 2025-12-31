@@ -69,6 +69,10 @@ export const UpdateTeamSchema = z.object({
   is_active: z.boolean().optional(),
 });
 
+export const PromoteUserSchema = z.object({
+  new_role: z.enum(['admin', 'recruiter', 'account_manager', 'recruitment_manager']),
+});
+
 export const CreateClientSchema = z.object({
   name: z.string().min(1),
   short_name: z.string().min(1).max(10),

@@ -9,6 +9,17 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 5000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react')) return 'react-vendor';
+          if (id.includes('node_modules/react-router')) return 'router';
+          if (id.includes('node_modules/lucide-react')) return 'icons';
+          if (id.includes('node_modules/recharts')) return 'charts';
+          return undefined;
+        },
+      },
+    },
   },
   resolve: {
     alias: {

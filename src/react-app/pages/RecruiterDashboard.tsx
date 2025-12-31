@@ -159,12 +159,7 @@ function DashboardContent({ selectedClient }: DashboardProps) {
     fetchData();
   }, [selectedClient, searchName]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchData();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [selectedClient, searchName]);
+ 
 
   const fetchData = async () => {
     try {

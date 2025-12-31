@@ -131,6 +131,11 @@ export default function PerformanceStats() {
   const [performanceFilter, setPerformanceFilter] = useState("all");
   const [showCharts, setShowCharts] = useState(true);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [minEbes, setMinEbes] = useState<number>(0);
+  const [onlyDropouts, setOnlyDropouts] = useState<boolean>(false);
+  const [onlyActiveRoles, setOnlyActiveRoles] = useState<boolean>(false);
+  const [sortKey, setSortKey] = useState<'ebesScore'|'totalDeals'|'totalSubmissions'|'totalInterviews'|'activeRoles'>('ebesScore');
+  const [sortOrder, setSortOrder] = useState<'asc'|'desc'>('desc');
 
   useEffect(() => {
     fetchInitialData();
@@ -138,19 +143,12 @@ export default function PerformanceStats() {
 
   useEffect(() => {
     fetchStats();
+    fetchSLA();
   }, [roleFilter, searchTerm, teamFilter, clientFilter, dateRange, startDate, endDate]);
-
+ 
   useEffect(() => {
     fetchSLA();
   }, [teamFilter, clientFilter]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchStats();
-      fetchSLA();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [roleFilter, searchTerm, teamFilter, clientFilter, dateRange, startDate, endDate]);
 
   const fetchInitialData = async () => {
     try {
@@ -660,9 +658,24 @@ const generatePDFReport = (data: UserStats[], fields: string[]) => {
   ].filter(r => r.count > 0);
 
   // Filter stats by performance level
-  const filteredStats = performanceFilter === "all" 
-    ? stats 
-    : stats.filter(s => s.performanceLabel === performanceFilter);
+  let filteredStats = [...stats];
+  if (performanceFilter !== "all") {
+    filteredStats = filteredStats.filter(s => s.performanceLabel === performanceFilter);
+  }
+  if (minEbes > 0) {
+    filteredStats = filteredStats.filter(s => (s.ebesScore || 0) >= minEbes);
+  }
+  if (onlyDropouts) {
+    filteredStats = filteredStats.filter(s => (s.dropouts || 0) > 0);
+  }
+  if (onlyActiveRoles) {
+    filteredStats = filteredStats.filter(s => (s.activeRoles || 0) > 0);
+  }
+  filteredStats.sort((a, b) => {
+    const av = (a as any)[sortKey] ?? 0;
+    const bv = (b as any)[sortKey] ?? 0;
+    return sortOrder === 'asc' ? av - bv : bv - av;
+  });
 
   return (
     <div className="space-y-6">
@@ -1388,6 +1401,65 @@ const generatePDFReport = (data: UserStats[], fields: string[]) => {
           <h3 className="font-semibold text-gray-900">Filters</h3>
         </div>
 
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button
+            onClick={() => {
+              setPerformanceFilter('Excellent');
+              setDateRange('month');
+              setMinEbes(85);
+              setOnlyDropouts(false);
+              setOnlyActiveRoles(true);
+              setSortKey('ebesScore');
+              setSortOrder('desc');
+            }}
+            className="px-3 py-1.5 text-xs rounded-full border border-green-300 text-green-700 bg-green-50 hover:bg-green-100"
+          >
+            Top Performers
+          </button>
+          <button
+            onClick={() => {
+              setPerformanceFilter('Needs Improvement');
+              setDateRange('week');
+              setMinEbes(0);
+              setOnlyDropouts(true);
+              setOnlyActiveRoles(false);
+              setSortKey('ebesScore');
+              setSortOrder('asc');
+            }}
+            className="px-3 py-1.5 text-xs rounded-full border border-red-300 text-red-700 bg-red-50 hover:bg-red-100"
+          >
+            At Risk
+          </button>
+          <button
+            onClick={() => {
+              setDateRange('week');
+            }}
+            className="px-3 py-1.5 text-xs rounded-full border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
+          >
+            Last 7 Days
+          </button>
+          <button
+            onClick={() => {
+              setRoleFilter('all');
+              setSearchTerm('');
+              setTeamFilter('all');
+              setClientFilter('all');
+              setDateRange('all');
+              setStartDate('');
+              setEndDate('');
+              setPerformanceFilter('all');
+              setMinEbes(0);
+              setOnlyDropouts(false);
+              setOnlyActiveRoles(false);
+              setSortKey('ebesScore');
+              setSortOrder('desc');
+            }}
+            className="px-3 py-1.5 text-xs rounded-full border border-gray-300 text-gray-700 bg-gray-50 hover:bg-gray-100"
+          >
+            Clear Filters
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Role Filter */}
           <div>
@@ -1506,6 +1578,65 @@ const generatePDFReport = (data: UserStats[], fields: string[]) => {
                 placeholder="Name, email, or code..."
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
+            </div>
+          </div>
+          
+          {/* Minimum EBES */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Min EBES</label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={minEbes}
+              onChange={(e) => setMinEbes(Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Toggles */}
+          <div className="flex items-center gap-4">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={onlyDropouts}
+                onChange={(e) => setOnlyDropouts(e.target.checked)}
+              />
+              Only dropouts
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={onlyActiveRoles}
+                onChange={(e) => setOnlyActiveRoles(e.target.checked)}
+              />
+              Only active roles
+            </label>
+          </div>
+
+          {/* Sort */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as any)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="ebesScore">EBES Score</option>
+                <option value="totalDeals">Deals</option>
+                <option value="totalSubmissions">Submissions</option>
+                <option value="totalInterviews">Interviews</option>
+                <option value="activeRoles">Active Roles</option>
+              </select>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as any)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="desc">Desc</option>
+                <option value="asc">Asc</option>
+              </select>
             </div>
           </div>
         </div>

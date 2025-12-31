@@ -18,6 +18,8 @@ export default function EditUserModal({ user, onClose, onUserUpdated }: EditUser
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPromote, setShowPromote] = useState(false);
+  const [promoteRole, setPromoteRole] = useState<'admin' | 'recruiter' | 'account_manager' | 'recruitment_manager'>(user.role === 'recruiter' ? 'account_manager' : 'recruiter');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +66,35 @@ export default function EditUserModal({ user, onClose, onUserUpdated }: EditUser
       } else {
         setError("An error occurred while updating the user. Please try again.");
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePromote = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetchWithAuth(`/api/admin/users/${user.id}/promote`, {
+        method: "POST",
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ new_role: promoteRole }),
+      });
+      const data = await response.json().catch(() => null);
+      if (response.ok) {
+        onUserUpdated();
+        onClose();
+      } else {
+        if (response.status === 401 || response.status === 403) {
+          setError("Session expired. Please log out and log back in.");
+        } else {
+          setError((data as any)?.error || "Failed to promote user");
+        }
+      }
+    } catch (err: any) {
+      setError("An error occurred while promoting the user. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -143,6 +174,45 @@ export default function EditUserModal({ user, onClose, onUserUpdated }: EditUser
             <label htmlFor="is_active" className="text-sm font-medium text-gray-700">
               Active
             </label>
+          </div>
+
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-indigo-700">Promote User</span>
+              <button
+                type="button"
+                onClick={() => setShowPromote(!showPromote)}
+                className="text-indigo-600 text-sm px-2 py-1 border border-indigo-300 rounded hover:bg-indigo-100"
+              >
+                {showPromote ? 'Hide' : 'Promote'}
+              </button>
+            </div>
+            {showPromote && (
+              <div className="mt-3 flex items-center gap-2">
+                <select
+                  value={promoteRole}
+                  onChange={(e) => setPromoteRole(e.target.value as any)}
+                  className="px-3 py-2 border border-indigo-300 rounded-lg bg-white"
+                >
+                  {['admin','recruiter','account_manager','recruitment_manager']
+                    .filter(r => r !== user.role)
+                    .map(r => (
+                      <option key={r} value={r}>
+                        {r.replace('_',' ')}
+                      </option>
+                    ))
+                  }
+                </select>
+                <button
+                  type="button"
+                  onClick={handlePromote}
+                  disabled={loading}
+                  className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {loading ? 'Promoting...' : 'Apply Promotion'}
+                </button>
+              </div>
+            )}
           </div>
 
           {error && (

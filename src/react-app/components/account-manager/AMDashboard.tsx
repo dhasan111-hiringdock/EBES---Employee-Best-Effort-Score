@@ -29,12 +29,7 @@ export default function AMDashboard() {
     fetchDashboardData();
   }, []);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchDashboardData();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, []);
+ 
 
   const fetchDashboardData = async () => {
     try {

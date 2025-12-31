@@ -8,11 +8,25 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [accountChoices, setAccountChoices] = useState<any[]>([]);
   const DEFAULT_API_BASE =
     typeof window !== 'undefined' && window.location.hostname.endsWith('.vercel.app')
       ? 'https://ebes-app.dhasan111.workers.dev'
       : '';
   const API_BASE: string = (import.meta as any)?.env?.VITE_API_BASE_URL ?? DEFAULT_API_BASE;
+
+  const getFinancialYearLabel = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      const year = d.getFullYear();
+      const month = d.getMonth() + 1;
+      const startYear = month < 4 ? year - 1 : year;
+      const endYear = month < 4 ? year : year + 1;
+      return `${startYear}-${endYear}`;
+    } catch {
+      return '';
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,23 +49,26 @@ export default function Login() {
       const data = isJson ? await response.json() : null;
 
       if (response.ok) {
-        // Store user data in local storage for faster access
-        localStorage.setItem('user', JSON.stringify((data as any).user));
-        
-        // Navigate based on role
-        const roleRoutes: Record<string, string> = {
-          super_admin: '/super-admin',
-          admin: '/admin',
-          recruiter: '/recruiter',
-          account_manager: '/am',
-          recruitment_manager: '/rm',
-        };
-        
-        const route = roleRoutes[(data as any).user.role];
-        if (route) {
-          navigate(route, { replace: true });
+        const accounts = (data as any)?.users || ((data as any)?.user ? [(data as any).user] : []);
+        if (accounts.length > 1) {
+          setAccountChoices(accounts);
+        } else if (accounts.length === 1) {
+          localStorage.setItem('user', JSON.stringify(accounts[0]));
+          const roleRoutes: Record<string, string> = {
+            super_admin: '/super-admin',
+            admin: '/admin',
+            recruiter: '/recruiter',
+            account_manager: '/am',
+            recruitment_manager: '/rm',
+          };
+          const route = roleRoutes[accounts[0].role];
+          if (route) {
+            navigate(route, { replace: true });
+          } else {
+            setError('Invalid user role');
+          }
         } else {
-          setError('Invalid user role');
+          setError('Invalid login response');
         }
       } else {
         setError((data as any)?.error || (isJson ? 'Invalid email or password' : 'Service not available. Please try again later.'));
@@ -146,6 +163,38 @@ export default function Login() {
               )}
             </button>
           </form>
+
+          {accountChoices.length > 1 && (
+            <div className="mt-6 bg-white rounded-xl border border-slate-200 p-4">
+              <p className="text-sm text-slate-700 mb-3">Select an account to continue</p>
+              <div className="space-y-2">
+                {accountChoices.map((u) => (
+                  <button
+                    key={u.id}
+                    onClick={() => {
+                      localStorage.setItem('user', JSON.stringify(u));
+                      const roleRoutes: Record<string, string> = {
+                        super_admin: '/super-admin',
+                        admin: '/admin',
+                        recruiter: '/recruiter',
+                        account_manager: '/am',
+                        recruitment_manager: '/rm',
+                      };
+                      const route = roleRoutes[u.role];
+                      navigate(route, { replace: true });
+                    }}
+                    className="w-full flex items-center justify-between px-4 py-2 border rounded-lg hover:bg-slate-50"
+                  >
+                    <span className="text-slate-800 font-medium">{u.name}</span>
+                    <span className="text-slate-500 text-sm font-mono">
+                      {u.user_code} • {u.role.replace('_',' ')}
+                      {u.created_at ? ` • FY ${getFinancialYearLabel(u.created_at)}` : ''}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-6 text-center">
             <p className="text-sm text-slate-500">

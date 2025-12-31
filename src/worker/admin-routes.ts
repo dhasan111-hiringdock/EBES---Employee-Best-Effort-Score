@@ -9,6 +9,7 @@ import {
   UpdateTeamSchema,
   AssignTeamSchema,
   AssignClientSchema,
+  PromoteUserSchema,
 } from "../shared/types";
 import { createNotification } from "./notification-routes";
 import type { HonoContext } from "./types";
@@ -188,6 +189,64 @@ app.post("/api/admin/users", adminOnly, async (c) => {
   }
 });
 
+// Promote user: duplicate account with new role, keep same mocha_user_id and email
+app.post("/api/admin/users/:id/promote", adminOnly, async (c) => {
+  const userId = c.req.param("id");
+  const body = await c.req.json();
+  const data = PromoteUserSchema.parse(body);
+  const db = c.env.DB;
+
+  try {
+    const existing = await db
+      .prepare("SELECT * FROM users WHERE id = ?")
+      .bind(userId)
+      .first();
+
+    if (!existing) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    const u = existing as any;
+
+    const newRole = data.new_role;
+    if (newRole === u.role) {
+      return c.json({ error: "New role must be different from current role" }, 400);
+    }
+
+    const newUserCode = await generateUserCode(db, newRole);
+
+    const result = await db
+      .prepare(`
+        INSERT INTO users (mocha_user_id, email, user_code, role, name, password, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, 1)
+      `)
+      .bind(u.mocha_user_id, u.email, newUserCode, newRole, u.name, u.password)
+      .run();
+
+    return c.json({
+      success: true,
+      old_user: {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        user_code: u.user_code,
+        is_active: u.is_active,
+      },
+      new_user: {
+        id: result.meta.last_row_id,
+        email: u.email,
+        name: u.name,
+        role: newRole,
+        user_code: newUserCode,
+        is_active: 1,
+      },
+    });
+  } catch (error) {
+    return c.json({ error: "Failed to promote user" }, 500);
+  }
+});
+
 // Get all users (TESTING MODE - auth removed)
 app.get("/api/admin/users", adminOnly, async (c) => {
   const db = c.env.DB;
@@ -208,21 +267,6 @@ app.put("/api/admin/users/:id", adminOnly, async (c) => {
   const db = c.env.DB;
 
   try {
-    // Check if this is the protected admin account
-    const user = await db
-      .prepare("SELECT email, role FROM users WHERE id = ?")
-      .bind(userId)
-      .first();
-
-    if ((user as any)?.email === 'dhasan111@gmail.com' && (user as any)?.role === 'admin') {
-      // Prevent role change and deactivation for protected admin
-      if (validatedData.role !== undefined && validatedData.role !== 'admin') {
-        return c.json({ error: "Cannot change the role of the default admin account" }, 403);
-      }
-      if (validatedData.is_active !== undefined && !validatedData.is_active) {
-        return c.json({ error: "Cannot deactivate the default admin account" }, 403);
-      }
-    }
 
     const updates: string[] = [];
     const values: any[] = [];
